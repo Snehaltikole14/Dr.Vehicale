@@ -2,10 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { useSearchParams } from "next/navigation";
 
 export default function CustomService() {
-  const searchParams = useSearchParams();
   const [companies, setCompanies] = useState([]);
   const [models, setModels] = useState([]);
   const [savedServices, setSavedServices] = useState([]);
@@ -29,22 +27,24 @@ export default function CustomService() {
 
   const userId = 1; // replace with actual logged-in user ID
 
-  // Fetch all companies
+  // ---------------- Load companies ----------------
   useEffect(() => {
     fetch("http://localhost:8080/api/bikes/companies")
       .then((res) => res.json())
       .then((data) => setCompanies(data));
   }, []);
 
-  // Pre-fill from query params if coming from BookingPage
+  // ---------------- Load query params (replaces useSearchParams) ----------------
   useEffect(() => {
-    const companyId = searchParams.get("companyId");
-    const modelId = searchParams.get("modelId");
+    if (typeof window === "undefined") return; // ensure running on client
+    const params = new URLSearchParams(window.location.search);
+    const companyId = params.get("companyId");
+    const modelId = params.get("modelId");
     if (companyId) setSelectedCompany(companyId);
     if (modelId) setSelectedModel(modelId);
-  }, [searchParams]);
+  }, []);
 
-  // Fetch models when company changes
+  // ---------------- Load models when company changes ----------------
   useEffect(() => {
     if (selectedCompany) {
       fetch(
@@ -59,7 +59,7 @@ export default function CustomService() {
     }
   }, [selectedCompany]);
 
-  // Auto-fill CC when model selected
+  // ---------------- Auto-fill CC when model selected ----------------
   useEffect(() => {
     if (selectedModel) {
       const model = models.find((m) => m.id == selectedModel);
@@ -69,7 +69,7 @@ export default function CustomService() {
     }
   }, [selectedModel, models]);
 
-  // Fetch saved services
+  // ---------------- Fetch saved services ----------------
   const fetchSavedServices = async () => {
     try {
       const res = await fetch(
@@ -87,7 +87,7 @@ export default function CustomService() {
     fetchSavedServices();
   }, [userId]);
 
-  // Auto-calculate price
+  // ---------------- Auto-calculate price ----------------
   useEffect(() => {
     const calculatePrice = async () => {
       if (!selectedCompany || !selectedModel || !cc) {
@@ -117,37 +117,36 @@ export default function CustomService() {
     calculatePrice();
   }, [selectedCompany, selectedModel, cc, services]);
 
-const handleSave = async () => {
-  const body = {
-    userId,
-    bikeCompany: selectedCompany,
-    bikeModel: selectedModel,
-    cc,
-    ...services,
-    totalPrice: price,
+  // ---------------- Save or update service ----------------
+  const handleSave = async () => {
+    const body = {
+      userId,
+      bikeCompany: selectedCompany,
+      bikeModel: selectedModel,
+      cc,
+      ...services,
+      totalPrice: price,
+    };
+    const url = editingId
+      ? `http://localhost:8080/api/customized/${editingId}`
+      : "http://localhost:8080/api/customized/save";
+    const method = editingId ? "PUT" : "POST";
+
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (res.ok) {
+      const savedService = await res.json();
+      alert(editingId ? "Updated successfully!" : "Saved successfully!");
+      // Redirect to BookingPage with query params
+      window.location.href = `/book?customServiceId=${savedService.id}&companyId=${savedService.bikeCompany}&modelId=${savedService.bikeModel}`;
+    }
   };
-  const url = editingId
-    ? `http://localhost:8080/api/customized/${editingId}`
-    : "http://localhost:8080/api/customized/save";
-  const method = editingId ? "PUT" : "POST";
 
-  const res = await fetch(url, {
-    method,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  if (res.ok) {
-    const savedService = await res.json(); // get saved service details (id, company, model, etc.)
-
-    alert(editingId ? "Updated successfully!" : "Saved successfully!");
-
-    // Redirect to BookingPage with saved service details in query params
-    window.location.href = `/book?customServiceId=${savedService.id}&companyId=${savedService.bikeCompany}&modelId=${savedService.bikeModel}`;
-
-  }
-};
-
+  // ---------------- Edit / Delete ----------------
   const handleEdit = (service) => {
     setEditingId(service.id);
     setSelectedCompany(service.bikeCompany);
@@ -171,13 +170,6 @@ const handleSave = async () => {
       method: "DELETE",
     });
     if (res.ok) fetchSavedServices();
-  };
-
-  const handleBookNow = (service) => {
-    // Navigate to booking page with query params
-    router.push(
-      `/book?customServiceId=${service.id}&companyId=${service.bikeCompanyId}&modelId=${service.bikeModelId}`
-    );
   };
 
   const getCompanyName = (id) => companies.find((c) => c.id == id)?.name || id;
@@ -283,76 +275,76 @@ const handleSave = async () => {
       </motion.div>
 
       {/* Saved Services */}
-     <div className="grid md:grid-cols-2 gap-6 mt-9">
-  {savedServices.map((s) => (
-    <motion.div
-      key={s.id}
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="p-6 bg-white rounded-3xl shadow-lg border border-gray-100 cursor-pointer hover:shadow-xl transition"
-      onClick={() =>
-        window.location.href = `/book?customServiceId=${s.id}&companyId=${s.bikeCompany}&modelId=${s.bikeModel}`
-      }
-    >
-      <h2 className="text-xl font-semibold text-gray-800 mb-2">
-        {s.bikeCompany} - {s.bikeModel} ({s.cc} CC)
-      </h2>
+      <div className="grid md:grid-cols-2 gap-6 mt-9">
+        {savedServices.map((s) => (
+          <motion.div
+            key={s.id}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-6 bg-white rounded-3xl shadow-lg border border-gray-100 cursor-pointer hover:shadow-xl transition"
+            onClick={() =>
+              (window.location.href = `/book?customServiceId=${s.id}&companyId=${s.bikeCompany}&modelId=${s.bikeModel}`)
+            }
+          >
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">
+              {s.bikeCompany} - {s.bikeModel} ({s.cc} CC)
+            </h2>
 
-      <p className="text-gray-600 mb-3">
-        <strong>Services:</strong>{" "}
-        {[
-          s.wash && "Wash",
-          s.oilChange && "Oil Change",
-          s.chainLube && "Chain Lube",
-          s.engineTuneUp && "Engine Tune-up",
-          s.breakCheck && "Brake Check",
-          s.fullbodyPolishing && "Full Body Polishing",
-          s.generalInspection && "General Inspection",
-        ]
-          .filter(Boolean)
-          .join(", ")}
-      </p>
+            <p className="text-gray-600 mb-3">
+              <strong>Services:</strong>{" "}
+              {[
+                s.wash && "Wash",
+                s.oilChange && "Oil Change",
+                s.chainLube && "Chain Lube",
+                s.engineTuneUp && "Engine Tune-up",
+                s.breakCheck && "Brake Check",
+                s.fullbodyPolishing && "Full Body Polishing",
+                s.generalInspection && "General Inspection",
+              ]
+                .filter(Boolean)
+                .join(", ")}
+            </p>
 
-      <p className="text-gray-800 font-bold text-lg">
-        Total Price: ₹{s.totalPrice}
-      </p>
+            <p className="text-gray-800 font-bold text-lg">
+              Total Price: ₹{s.totalPrice}
+            </p>
 
-      <div className="mt-4 flex gap-3">
-        <button
-          onClick={(e) => {
-            e.stopPropagation(); // prevent card click
-            handleEdit(s);
-          }}
-          className="px-4 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600"
-        >
-          Edit
-        </button>
+            <div className="mt-4 flex gap-3">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation(); // prevent card click
+                  handleEdit(s);
+                }}
+                className="px-4 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+              >
+                Edit
+              </button>
 
-        <button
-          onClick={(e) => {
-            e.stopPropagation(); // prevent card click
-            handleDelete(s.id);
-          }}
-          className="px-4 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-        >
-          Delete
-        </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation(); // prevent card click
+                  handleDelete(s.id);
+                }}
+                className="px-4 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+              >
+                Delete
+              </button>
 
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            window.location.href = `/book?customServiceId=${s.id}&companyId=${s.bikeCompany}&modelId=${s.bikeModel}`;
-          }}
-          className="px-4 py-1 bg-green-600 text-white rounded hover:bg-green-700"
-        >
-          Book Now
-        </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.location.href = `/book?customServiceId=${s.id}&companyId=${s.bikeCompany}&modelId=${s.bikeModel}`;
+                }}
+                className="px-4 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+              >
+                Book Now
+              </button>
+            </div>
+          </motion.div>
+        ))}
       </div>
-    </motion.div>
-  ))}
-</div>
 
-          {/* )}
+      {/* )}
         </section>
       )} */}
     </main>
