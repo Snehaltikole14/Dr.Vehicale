@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { API } from "@/utils/api";
 
 export default function BookingPage() {
@@ -22,7 +22,6 @@ export default function BookingPage() {
   const [loading, setLoading] = useState(false);
 
   const router = useRouter();
-  const searchParams = useSearchParams();
   const initialized = useRef(false);
 
   const selectedCompany = watch("companyId");
@@ -49,13 +48,15 @@ export default function BookingPage() {
       .catch((err) => console.error("Error fetching models:", err));
   }, [selectedCompany, setValue]);
 
-  // ---------------- Load custom service if returned from CustomService page ----------------
+  // ---------------- Load custom service if query parameters exist ----------------
   useEffect(() => {
     if (initialized.current) return;
 
-    const customServiceId = searchParams.get("customServiceId");
-    const companyId = searchParams.get("companyId");
-    const modelId = searchParams.get("modelId");
+    // Use URL query parameters instead of useSearchParams()
+    const params = new URLSearchParams(window.location.search);
+    const customServiceId = params.get("customServiceId");
+    const companyId = params.get("companyId");
+    const modelId = params.get("modelId");
 
     if (companyId && companyId !== "undefined")
       setValue("companyId", companyId);
@@ -69,7 +70,6 @@ export default function BookingPage() {
           const data = res.data;
           setCustomData(data);
 
-          // Auto-fill form fields from customData
           if (data.bikeCompany) setValue("companyId", data.bikeCompany);
           if (data.bikeModel) setValue("modelId", data.bikeModel);
         })
@@ -77,7 +77,7 @@ export default function BookingPage() {
     }
 
     initialized.current = true;
-  }, [searchParams, setValue]);
+  }, [setValue]);
 
   // ---------------- Clear customData if service type changes ----------------
   useEffect(() => {
@@ -93,7 +93,6 @@ export default function BookingPage() {
       return;
     }
 
-    // If CUSTOMIZED but customData not ready, redirect to build service
     if (data.serviceType === "CUSTOMIZED" && !customData) {
       router.push(
         `/custom-service?companyId=${data.companyId}&modelId=${data.modelId}`
@@ -120,7 +119,6 @@ export default function BookingPage() {
                 bikeCompany: customData.bikeCompany,
                 bikeModel: customData.bikeModel,
                 cc: customData.cc,
-
                 wash: customData.wash,
                 oilChange: customData.oilChange,
                 chainLube: customData.chainLube,
@@ -128,7 +126,6 @@ export default function BookingPage() {
                 breakCheck: customData.breakCheck,
                 fullbodyPolishing: customData.fullbodyPolishing,
                 generalInspection: customData.generalInspection,
-
                 totalPrice: customData.totalPrice,
               }
             : null,
@@ -151,7 +148,6 @@ export default function BookingPage() {
     }
   };
 
-  // ---------------- Helpers ----------------
   const getSelectedServices = () => {
     if (!customData) return [];
     const map = {
