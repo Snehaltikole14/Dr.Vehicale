@@ -14,12 +14,11 @@ import {
 export default function MyBookingsPage() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  const token = localStorage.getItem("token");
+  const [token, setToken] = useState(""); // move token here
 
   // Fetch user bookings
-  const fetchBookings = async () => {
-    if (!token) {
+  const fetchBookings = async (authToken) => {
+    if (!authToken) {
       toast.error("Please login first");
       setLoading(false);
       return;
@@ -27,7 +26,7 @@ export default function MyBookingsPage() {
 
     try {
       const res = await API.get("/api/bookings/my", {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${authToken}` },
       });
       setBookings(res.data);
     } catch (err) {
@@ -38,7 +37,10 @@ export default function MyBookingsPage() {
   };
 
   useEffect(() => {
-    fetchBookings();
+    // Only run in browser
+    const storedToken = localStorage.getItem("token");
+    setToken(storedToken);
+    fetchBookings(storedToken);
   }, []);
 
   // Delete booking
