@@ -40,8 +40,15 @@ export default function LocationModalWithMap({ onLocationConfirmed }) {
       return;
     }
 
+    const geoTimeout = setTimeout(() => {
+      toast.error("Location taking too long. Select manually.");
+      setLoading(false);
+    }, 8000); // 8 seconds timeout
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        clearTimeout(geoTimeout);
+
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
         const distance = getDistanceFromLatLonInKm(
@@ -59,19 +66,27 @@ export default function LocationModalWithMap({ onLocationConfirmed }) {
           );
           onLocationConfirmed();
         } else {
-          toast.error(
-            "You are outside our service area. Please select Pune manually."
-          );
+          toast.error("You are outside service area.");
           setUserPos(CENTER);
         }
+
         setLoading(false);
       },
-      () => {
-        toast.error("Allow location access or select Pune manually.");
+      (err) => {
+        clearTimeout(geoTimeout);
+
+        toast.error(
+          err.code === 1
+            ? "Permission denied. Allow location access."
+            : "Unable to get location. Select Pune manually."
+        );
+
         setLoading(false);
-      }
+      },
+      { enableHighAccuracy: true, timeout: 7000 }
     );
   }, [onLocationConfirmed]);
+
 
   const getDistanceFromLatLonInKm = (lat1, lon1, lat2, lon2) => {
     const R = 6371;
