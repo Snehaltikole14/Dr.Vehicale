@@ -7,17 +7,24 @@ import { motion } from "framer-motion";
 export default function BikeServicesSection() {
   const [services, setServices] = useState([]);
   const [showAll, setShowAll] = useState(false);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const loadServices = async () => {
       try {
         const res = await fetch(
-          "https://dr-vehicle-backend.onrender.com/services/plans"
-        );
+          "https://dr-vehicle-backend.onrender.com/api/services/plans"
+        ); // Make sure endpoint matches SecurityConfig
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text);
+        }
         const data = await res.json();
         setServices(data);
+        setError(null);
       } catch (err) {
         console.error("Error fetching services:", err);
+        setError(err.message);
       }
     };
     loadServices();
@@ -38,6 +45,13 @@ export default function BikeServicesSection() {
             Choose the right plan for your bike’s engine capacity.
           </p>
         </div>
+
+        {/* Error message */}
+        {error && (
+          <p className="text-center text-red-600 mb-6">
+            Failed to load services: {error}
+          </p>
+        )}
 
         {/* Services Grid */}
         <div className="grid gap-8 grid-cols-1 md:grid-cols-2">
@@ -73,7 +87,7 @@ export default function BikeServicesSection() {
 
               <div className="mt-8">
                 <a
-                  href={`/book?serviceType=${service.value}`} // pass service value
+                  href={`/book?serviceType=${service.value}`}
                   className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-yellow-600 text-white hover:bg-yellow-700"
                 >
                   Book Now <ChevronRight size={18} />
