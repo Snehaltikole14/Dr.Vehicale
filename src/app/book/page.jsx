@@ -4,6 +4,8 @@ import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { API } from "@/utils/api";
+import { motion, AnimatePresence } from "framer-motion";
+import { AiOutlineCheckCircle, AiOutlineCloseCircle } from "react-icons/ai";
 
 export default function BookingPage() {
   const {
@@ -14,8 +16,7 @@ export default function BookingPage() {
     formState: { errors },
   } = useForm({ mode: "onChange" });
 
-  const [success, setSuccess] = useState("");
-  const [showPopup, setShowPopup] = useState(false);
+  const [popup, setPopup] = useState(null); // { type: 'success' | 'error', message }
   const [companies, setCompanies] = useState([]);
   const [models, setModels] = useState([]);
   const [customData, setCustomData] = useState(null);
@@ -51,8 +52,6 @@ export default function BookingPage() {
   // ---------------- Load custom service if query parameters exist ----------------
   useEffect(() => {
     if (initialized.current) return;
-
-    // Use URL query parameters instead of useSearchParams()
     const params = new URLSearchParams(window.location.search);
     const customServiceId = params.get("customServiceId");
     const companyId = params.get("companyId");
@@ -64,12 +63,10 @@ export default function BookingPage() {
 
     if (customServiceId) {
       setValue("serviceType", "CUSTOMIZED");
-
       API.get(`/api/customized/${customServiceId}`)
         .then((res) => {
           const data = res.data;
           setCustomData(data);
-
           if (data.bikeCompany) setValue("companyId", data.bikeCompany);
           if (data.bikeModel) setValue("modelId", data.bikeModel);
         })
@@ -79,7 +76,6 @@ export default function BookingPage() {
     initialized.current = true;
   }, [setValue]);
 
-  // ---------------- Clear customData if service type changes ----------------
   useEffect(() => {
     if (selectedServiceType !== "CUSTOMIZED") setCustomData(null);
   }, [selectedServiceType]);
@@ -88,8 +84,11 @@ export default function BookingPage() {
   const onSubmit = async (data) => {
     const token = localStorage.getItem("token");
     if (!token) {
-      alert("You must be logged in to book a service");
-      router.push(`/login`);
+      setPopup({
+        type: "error",
+        message: "You must be logged in to book a service.",
+      });
+      router.push("/login");
       return;
     }
 
@@ -113,36 +112,25 @@ export default function BookingPage() {
           city: "Pune",
           landmark: data.landmark,
           notes: data.notes,
-          customizedService: customData
-            ? {
-                id: customData.id,
-                bikeCompany: customData.bikeCompany,
-                bikeModel: customData.bikeModel,
-                cc: customData.cc,
-                wash: customData.wash,
-                oilChange: customData.oilChange,
-                chainLube: customData.chainLube,
-                engineTuneUp: customData.engineTuneUp,
-                breakCheck: customData.breakCheck,
-                fullbodyPolishing: customData.fullbodyPolishing,
-                generalInspection: customData.generalInspection,
-                totalPrice: customData.totalPrice,
-              }
-            : null,
+          customizedService: customData || null,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      setSuccess("Your booking has been successfully created!");
-      setShowPopup(true);
-
+      setPopup({
+        type: "success",
+        message: "Your booking has been successfully created!",
+      });
       setTimeout(() => {
-        setShowPopup(false);
-        router.push("book/booking-success");
+        setPopup(null);
+        router.push("/book/booking-success");
       }, 2000);
     } catch (err) {
       console.error(err.response || err);
-      alert(err.response?.data || "Booking failed.");
+      setPopup({
+        type: "error",
+        message: err.response?.data || "Booking failed.",
+      });
     } finally {
       setLoading(false);
     }
@@ -167,11 +155,13 @@ export default function BookingPage() {
   const getModelName = (id) =>
     models.find((m) => m.id === Number(id))?.modelName || id;
 
-  // ---------------- Render ----------------
   return (
-    <div className="max-w-2xl mx-auto p-6 relative">
-      <h1 className="text-3xl font-bold mb-6">Book a Bike Service</h1>
+    <div className="max-w-3xl mx-auto p-4 sm:p-6 md:p-8 relative">
+      <h1 className="text-3xl font-bold mb-6 text-center md:text-left">
+        Book a Bike Service
+      </h1>
 
+      {/* Customized Service Summary */}
       {customData && (
         <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg mb-6">
           <h2 className="text-xl font-bold text-blue-800 mb-2">
@@ -200,64 +190,68 @@ export default function BookingPage() {
         </div>
       )}
 
-      {showPopup && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
-          <div className="bg-white text-black p-8 rounded-xl shadow-xl max-w-md text-center">
-            <div className="mb-4 flex justify-center">
-              <svg
-                className="w-16 h-16 text-green-600"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="8"
-                viewBox="0 0 24 24"
+      {/* Popup */}
+      <AnimatePresence>
+        {popup && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            className="fixed inset-0 flex items-center justify-center bg-black/50 z-50 p-4"
+          >
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 text-center">
+              <motion.div
+                animate={{ scale: [1, 1.2, 1] }}
+                transition={{ duration: 1, repeat: Infinity }}
+                className="mb-4 text-6xl flex justify-center"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
+                {popup.type === "success" ? (
+                  <AiOutlineCheckCircle className="text-green-600" />
+                ) : (
+                  <AiOutlineCloseCircle className="text-red-600" />
+                )}
+              </motion.div>
+              <p className="text-lg font-semibold">{popup.message}</p>
             </div>
-            <p className="text-2xl font-bold">{success}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Booking Form */}
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex-1">
+            <label className="block mb-1 font-semibold">Bike Company</label>
+            <select
+              {...register("companyId", { required: true })}
+              className="border p-2 w-full rounded"
+            >
+              <option value="">Select company</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex-1">
+            <label className="block mb-1 font-semibold">Bike Model</label>
+            <select
+              {...register("modelId", { required: true })}
+              className="border p-2 w-full rounded"
+              disabled={!selectedCompany}
+            >
+              <option value="">Select model</option>
+              {models.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.modelName}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
-      )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        {/* Bike Company */}
-        <div>
-          <label className="block mb-1 font-semibold">Bike Company</label>
-          <select
-            {...register("companyId", { required: true })}
-            className="border p-2 w-full rounded"
-          >
-            <option value="">Select company</option>
-            {companies.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Bike Model */}
-        <div>
-          <label className="block mb-1 font-semibold">Bike Model</label>
-          <select
-            {...register("modelId", { required: true })}
-            className="border p-2 w-full rounded"
-            disabled={!selectedCompany}
-          >
-            <option value="">Select model</option>
-            {models.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.modelName}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Service Type */}
         <div>
           <label className="block mb-1 font-semibold">Service Type</label>
           <select
@@ -265,7 +259,6 @@ export default function BookingPage() {
             className="border p-2 w-full rounded"
           >
             <option value="">Select service</option>
-
             <option value="PLAN_UPTO_100CC">
               Servicing Plan (Up to 100cc)
             </option>
@@ -279,7 +272,6 @@ export default function BookingPage() {
           </select>
         </div>
 
-        {/* Appointment Date */}
         <div>
           <label className="block mb-1 font-semibold">Appointment Date</label>
           <input
@@ -299,7 +291,6 @@ export default function BookingPage() {
           )}
         </div>
 
-        {/* Full Address */}
         <div>
           <label className="block mb-1 font-semibold">Full Address</label>
           <textarea
@@ -309,7 +300,6 @@ export default function BookingPage() {
           />
         </div>
 
-        {/* Landmark */}
         <div>
           <label className="block mb-1 font-semibold">Landmark</label>
           <input
@@ -318,7 +308,6 @@ export default function BookingPage() {
           />
         </div>
 
-        {/* Notes */}
         <div>
           <label className="block mb-1 font-semibold">Notes</label>
           <textarea
@@ -331,7 +320,7 @@ export default function BookingPage() {
         <button
           type="submit"
           disabled={loading}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition w-full md:w-auto"
         >
           {loading ? "Booking..." : "Book Now"}
         </button>

@@ -71,7 +71,7 @@ export default function BikeServicesSection() {
 
               <div className="mt-8">
                 <a
-                  href="/book"
+                  href={`/book?serviceType=${service.value}`} // pass service value
                   className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-yellow-600 text-white hover:bg-yellow-700"
                 >
                   Book Now <ChevronRight size={18} />
