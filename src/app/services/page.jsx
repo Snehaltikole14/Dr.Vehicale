@@ -11,7 +11,9 @@ export default function BikeServicesSection() {
   useEffect(() => {
     const loadServices = async () => {
       try {
-        const res = await fetch("http://localhost:8080/api/services/plans");
+        const res = await fetch(
+          "https://dr-vehicle-backend.onrender.com/services/plans"
+        );
         const data = await res.json();
         setServices(data);
       } catch (err) {
