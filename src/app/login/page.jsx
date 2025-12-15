@@ -11,7 +11,7 @@ export default function LoginPage() {
   const [form, setForm] = useState({ loginId: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [popup, setPopup] = useState(null); // { type: 'success' | 'error', title, message }
+  const [popup, setPopup] = useState(null);
 
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -25,7 +25,6 @@ export default function LoginPage() {
         password: form.password,
       });
 
-      // Save token & user
       localStorage.setItem("token", res.data.token);
       localStorage.setItem(
         "user",
@@ -37,58 +36,49 @@ export default function LoginPage() {
         })
       );
 
-      // Show success popup
       setPopup({
         type: "success",
         title: "Welcome Back!",
         message: `You have successfully logged in, ${res.data.name}.`,
       });
 
-      // Auto redirect after 1.5s
       setTimeout(() => {
-        const role = res.data.role;
-        if (role === "ADMIN") router.push("/admin");
-        else if (role === "MECHANIC") router.push("/mechanic");
+        if (res.data.role === "ADMIN") router.push("/admin");
+        else if (res.data.role === "MECHANIC") router.push("/mechanic");
         else router.push("/");
       }, 1500);
-    } catch (err) {
+    } catch {
       setPopup({
         type: "error",
         title: "Login Failed!",
-        message: "This email is not registered or password is incorrect.",
+        message: "Invalid email/username or password.",
       });
     } finally {
       setLoading(false);
     }
   };
 
-  const closePopup = () => setPopup(null);
-
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gray-50 p-4 relative">
-      {/* Popup */}
+    <div className="min-h-screen w-full flex items-center justify-center bg-gray-50 px-4 py-6 relative">
+      {/* POPUP */}
       <AnimatePresence>
         {popup && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            className="absolute inset-0 flex items-center justify-center z-50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4"
           >
             <motion.div
-              initial={{ y: -20 }}
-              animate={{ y: 0 }}
-              exit={{ y: -20 }}
-              className="bg-white rounded-xl shadow-2xl w-80 p-6 flex flex-col items-center text-center"
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 text-center"
             >
-              {/* Animated Icon */}
               <motion.div
-                animate={{
-                  scale: [1, 1.2, 1],
-                  rotate: [0, 10, -10, 0],
-                }}
+                animate={{ scale: [1, 1.2, 1] }}
                 transition={{ duration: 1, repeat: Infinity }}
-                className="mb-4 text-6xl"
+                className="text-5xl mb-3"
               >
                 {popup.type === "success" ? (
                   <AiOutlineCheckCircle className="text-green-600" />
@@ -97,95 +87,84 @@ export default function LoginPage() {
                 )}
               </motion.div>
 
-              {/* Title */}
               <h2
-                className={`text-2xl font-bold mb-2 ${
+                className={`text-xl font-bold ${
                   popup.type === "success" ? "text-green-600" : "text-red-600"
                 }`}
               >
                 {popup.title}
               </h2>
 
-              {/* Message */}
-              <p className="text-gray-700 mb-6">{popup.message}</p>
+              <p className="text-gray-600 mt-2 text-sm">{popup.message}</p>
 
-              {/* OK Button */}
               <button
-                onClick={closePopup}
-                className={`w-24 px-4 py-2 rounded-lg font-semibold text-white transition ${
-                  popup.type === "success"
-                    ? "bg-green-600 hover:bg-green-700"
-                    : "bg-red-600 hover:bg-red-700"
+                onClick={() => setPopup(null)}
+                className={`mt-5 px-6 py-2 rounded-lg text-white font-semibold ${
+                  popup.type === "success" ? "bg-green-600" : "bg-red-600"
                 }`}
               >
-                Ok
+                OK
               </button>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Login Card */}
+      {/* LOGIN CARD */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="w-full max-w-md bg-white rounded-2xl shadow-lg border border-gray-200 p-8"
+        className="w-full max-w-md bg-white rounded-2xl shadow-lg p-6 sm:p-8"
       >
-        {/* Logo & Header */}
+        {/* HEADER */}
         <div className="flex flex-col items-center mb-6">
-          <img src="/logo.png" className="w-16 h-16 rounded-full shadow-md" />
-          <h1 className="text-3xl font-bold mt-3 text-gray-800">
+          <img
+            src="/logo.png"
+            alt="Logo"
+            className="w-14 h-14 sm:w-16 sm:h-16 rounded-full shadow"
+          />
+          <h1 className="text-2xl sm:text-3xl font-bold mt-3 text-gray-800">
             Welcome Back
           </h1>
           <p className="text-sm text-gray-500">Sign in to continue</p>
         </div>
 
-        {/* Login Form */}
-        <form onSubmit={handleSubmit} className="space-y-5">
+        {/* FORM */}
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-sm font-medium text-gray-700">
-              Email or Username
-            </label>
-            <div className="mt-1 flex items-center gap-3 border border-gray-300 rounded-lg px-3 py-2 bg-gray-50">
-              <FiMail className="text-gray-500" />
+            <label className="text-sm font-medium">Email or Username</label>
+            <div className="flex items-center gap-2 border rounded-lg px-3 py-2 mt-1 bg-gray-50">
+              <FiMail />
               <input
-                type="text"
                 name="loginId"
                 value={form.loginId}
                 onChange={handleChange}
                 required
+                className="w-full bg-transparent outline-none text-sm"
                 placeholder="Enter email or username"
-                className="w-full bg-transparent outline-none"
               />
             </div>
           </div>
 
           <div>
-            <label className="text-sm font-medium text-gray-700">
-              Password
-            </label>
+            <label className="text-sm font-medium">Password</label>
             <span
               onClick={() => router.push("/forgot-password")}
-              className="text-blue-600 text-sm cursor-pointer hover:underline float-right"
+              className="text-blue-600 text-xs float-right cursor-pointer"
             >
               Forgot?
             </span>
-            <div className="mt-1 flex items-center gap-3 border border-gray-300 rounded-lg px-3 py-2 bg-gray-50">
-              <FiLock className="text-gray-500" />
+            <div className="flex items-center gap-2 border rounded-lg px-3 py-2 mt-1 bg-gray-50">
+              <FiLock />
               <input
                 type={showPassword ? "text" : "password"}
                 name="password"
                 value={form.password}
                 onChange={handleChange}
                 required
-                placeholder="Enter password"
-                className="w-full bg-transparent outline-none"
+                className="w-full bg-transparent outline-none text-sm"
               />
-              <span
-                onClick={() => setShowPassword(!showPassword)}
-                className="cursor-pointer text-gray-600 hover:text-gray-800"
-              >
+              <span onClick={() => setShowPassword(!showPassword)}>
                 {showPassword ? <FiEyeOff /> : <FiEye />}
               </span>
             </div>
@@ -194,21 +173,19 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className={`w-full py-2.5 rounded-lg font-semibold text-white transition ${
-              loading
-                ? "bg-cyan-300 cursor-not-allowed"
-                : "bg-cyan-600 hover:bg-cyan-700"
+            className={`w-full py-2.5 rounded-lg text-white font-semibold ${
+              loading ? "bg-cyan-300" : "bg-cyan-600 hover:bg-cyan-700"
             }`}
           >
             {loading ? "Signing In..." : "Sign In"}
           </button>
         </form>
 
-        <p className="text-center text-gray-600 text-sm mt-6">
+        <p className="text-center text-sm mt-6">
           Don’t have an account?
           <span
             onClick={() => router.push("/signup")}
-            className="text-blue-600 cursor-pointer hover:underline ml-1"
+            className="text-blue-600 ml-1 cursor-pointer"
           >
             Create account
           </span>
