@@ -34,7 +34,7 @@ export default function Header() {
     { name: "Services", href: "/services" },
     { name: "Custom Plan", href: "/custom-service" },
     { name: "About", href: "/about" },
-    { name: "Contact", href: "/book" },
+    { name: "Contact", href: "/contact" },
   ];
 
   const handleLogout = () => {
@@ -54,7 +54,7 @@ export default function Header() {
             alt="Dr. Vehicle Care Logo"
             width={50}
             height={50}
-            className="rounded-full"
+            className=""
           />
           <h1 className="text-black font-extrabold text-2xl hover:text-cyan-500 transition">
             Dr. Vehicle Care

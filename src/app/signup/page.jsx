@@ -165,9 +165,14 @@ export default function SignupPage() {
             </div>
             <button
               type="submit"
-              className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition"
+              disabled={loading}
+              className={`w-full py-2.5 rounded-lg font-semibold text-white transition ${
+                loading
+                  ? "bg-cyan-300 cursor-not-allowed"
+                  : "bg-cyan-600 hover:bg-cyan-700"
+              }`}
             >
-              Send OTP
+              {loading ? "Sending..." : "Send OTP"}
             </button>
           </form>
         ) : (
