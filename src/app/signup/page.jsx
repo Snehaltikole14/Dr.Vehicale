@@ -8,6 +8,7 @@ import { AiOutlineCheckCircle, AiOutlineCloseCircle } from "react-icons/ai";
 
 export default function SignupPage() {
   const router = useRouter();
+   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1); // Step 1 = request OTP, Step 2 = verify OTP
   const [form, setForm] = useState({
     name: "",
