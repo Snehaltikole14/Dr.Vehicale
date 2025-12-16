@@ -61,14 +61,14 @@ export default function BookingDetails() {
                 <h3 className="text-md font-semibold mb-2">
                   Customization Details
                 </h3>
-                <p>
-                  <b>Bike Company:</b>{" "}
+                {/* <p> */}
+                  {/* <b>Bike Company:</b>{" "}
                   {booking.customizedService.bikeCompany?.name || "N/A"}
                 </p>
                 <p>
                   <b>Model:</b>{" "}
                   {booking.customizedService.bikeModel?.modelName || "N/A"}
-                </p>
+                </p> */}
                 <p>
                   <b>CC:</b> {booking.customizedService.cc || 0}
                 </p>

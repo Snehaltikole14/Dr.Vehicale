@@ -1,113 +1,171 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import axios from "axios";
+import toast from "react-hot-toast";
 
-export default function BookingDetails() {
-  const { id } = useParams();
-  const [booking, setBooking] = useState(null);
-  const [error, setError] = useState("");
+const API = "http://localhost:8080/api/admin";
 
-  const fetchBooking = async () => {
+export default function BookingsPage() {
+  const router = useRouter();
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // ================= FETCH BOOKINGS =================
+  const fetchBookings = async () => {
     try {
-      const res = await axios.get(
-        `http://localhost:8080/api/admin/bookings/${id}`,
+      setLoading(true);
+      const res = await axios.get(`${API}/bookings`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      });
+      setBookings(res.data);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to fetch bookings");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ================= UPDATE STATUS =================
+  const markCompleted = async (id) => {
+    try {
+      await axios.patch(
+        `${API}/bookings/${id}/approve`,
+        {},
         {
-          withCredentials: true,
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
         }
       );
-      setBooking(res.data);
+      toast.success("Booking marked as COMPLETED");
+      fetchBookings();
     } catch (err) {
-      setError("Unable to load booking details");
+      console.error(err);
+      toast.error("Failed to update booking");
+    }
+  };
+
+  const markCancelled = async (id) => {
+    try {
+      await axios.patch(
+        `${API}/bookings/${id}/reject`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      );
+      toast.success("Booking marked as CANCELLED");
+      fetchBookings();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to update booking");
     }
   };
 
   useEffect(() => {
-    fetchBooking();
-  }, [id]);
-
-  if (!booking) return <p className="p-10">Loading...</p>;
+    fetchBookings();
+  }, []);
 
   return (
-    <div className="min-h-screen p-10 bg-gray-100">
-      <div className="bg-white p-6 rounded-xl shadow max-w-3xl mx-auto">
-        <h1 className="text-2xl font-bold mb-4">Booking Details</h1>
+    <div className="min-h-screen bg-gray-100 p-4 sm:p-6">
+      <h1 className="text-2xl font-bold mb-6">All Bookings</h1>
 
-        {/* User Info */}
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold">User Information</h2>
-          <p>
-            <b>Name:</b> {booking.user?.name}
-          </p>
-          <p>
-            <b>Email:</b> {booking.user?.email}
-          </p>
-          <p>
-            <b>Phone:</b> {booking.user?.phone}
-          </p>
+      {loading ? (
+        <p>Loading bookings...</p>
+      ) : bookings.length === 0 ? (
+        <p>No bookings found.</p>
+      ) : (
+        <div className="overflow-x-auto bg-white rounded-xl shadow">
+          <table className="w-full min-w-[900px] text-sm sm:text-base">
+            <thead>
+              <tr className="bg-gray-200 text-left">
+                <th className="p-3">User</th>
+                <th className="p-3">Bike</th>
+                <th className="p-3">Service</th>
+                <th className="p-3">Date</th>
+                <th className="p-3">Price</th>
+                <th className="p-3">Status</th>
+                <th className="p-3">Actions</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {bookings.map((b) => (
+                <tr
+                  key={b.id}
+                  className="border-b hover:bg-gray-50 cursor-pointer"
+                  onClick={() => router.push(`/admin/booking/${b.id}`)}
+                >
+                  <td className="p-3">{b.user?.name || "N/A"}</td>
+
+                  <td className="p-3">
+                    {b.bikeCompany?.name || "N/A"} {b.bikeModel?.name || ""}
+                  </td>
+
+                  <td className="p-3">{b.serviceType}</td>
+
+                  <td className="p-3">{b.appointmentDate}</td>
+
+                  <td className="p-3 font-semibold text-blue-600">
+                    ₹{b.servicePrice || b.price || 0}
+                  </td>
+
+                  {/* STATUS BADGE */}
+                  <td className="p-3">
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-semibold
+                        ${
+                          b.status === "COMPLETED"
+                            ? "bg-green-100 text-green-700"
+                            : b.status === "CANCELLED"
+                            ? "bg-red-100 text-red-700"
+                            : "bg-yellow-100 text-yellow-700"
+                        }`}
+                    >
+                      {b.status}
+                    </span>
+                  </td>
+
+                  {/* ACTION BUTTONS */}
+                  <td
+                    className="p-3 flex gap-2"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {b.status === "PENDING" && (
+                      <>
+                        <button
+                          onClick={() => markCompleted(b.id)}
+                          className="px-3 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600"
+                        >
+                          COMPLETE
+                        </button>
+
+                        <button
+                          onClick={() => markCancelled(b.id)}
+                          className="px-3 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
+                        >
+                          CANCEL
+                        </button>
+                      </>
+                    )}
+
+                    {b.status !== "PENDING" && (
+                      <span className="text-gray-400 text-xs">No actions</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-
-        {/* Booking Info */}
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold">Booking Information</h2>
-          <p>
-            <b>Service:</b> {booking.serviceType}
-          </p>
-          <p>
-            <b>Date:</b> {booking.appointmentDate}
-          </p>
-          <p>
-            <b>Status:</b> {booking.status}
-          </p>
-        </div>
-
-        {/* Bike Info */}
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold">Bike Details</h2>
-          <p>
-            <b>Company:</b> {booking.bikeCompany?.name}
-          </p>
-          <p>
-            <b>Model:</b> {booking.bikeModel?.name}
-          </p>
-        </div>
-
-        {/* Buttons */}
-        {booking.status === "PENDING" && (
-          <div className="flex gap-4 mt-6">
-            <button
-              onClick={() =>
-                axios
-                  .patch(
-                    `http://localhost:8080/api/admin/bookings/${id}/approve`,
-                    {},
-                    { withCredentials: true }
-                  )
-                  .then(fetchBooking)
-              }
-              className="px-4 py-2 bg-green-500 text-white rounded"
-            >
-              APPROVE
-            </button>
-
-            <button
-              onClick={() =>
-                axios
-                  .patch(
-                    `http://localhost:8080/api/admin/bookings/${id}/reject`,
-                    {},
-                    { withCredentials: true }
-                  )
-                  .then(fetchBooking)
-              }
-              className="px-4 py-2 bg-red-500 text-white rounded"
-            >
-              REJECT
-            </button>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }

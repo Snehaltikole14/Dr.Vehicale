@@ -1,211 +1,157 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FiMenu, FiBell, FiUser, FiSearch, FiSettings } from "react-icons/fi";
+import { FiUser } from "react-icons/fi";
 import { MdMiscellaneousServices } from "react-icons/md";
 import axios from "axios";
- import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
+import { Line } from "react-chartjs-2";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+} from "chart.js";
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+);
+
+const API = "http://localhost:8080/api/admin";
 
 export default function AdminDashboard() {
-  const [bookings, setBookings] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
- 
-  const router = useRouter();
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalMechanics: 0,
+    revenue: 0,
+    totalBookings: 0,
+  });
+  const [revenueData, setRevenueData] = useState([]);
+  const [loadingStats, setLoadingStats] = useState(true);
 
-
-  const fetchBookings = async () => {
-    setLoading(true);
+  // ================= FETCH STATS =================
+  const fetchStats = async () => {
     try {
-      const res = await axios.get("http://localhost:8080/api/admin/bookings", {
-        withCredentials: true,
+      setLoadingStats(true);
+      const res = await axios.get(`${API}/stats`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
       });
-      setBookings(res.data);
+      setStats(res.data);
+      setRevenueData(res.data.revenueByMonth || []); // revenue by month array from backend
     } catch (err) {
-      setError("Unable to load bookings.");
+      console.error(err);
+      toast.error("Failed to fetch stats");
     } finally {
-      setLoading(false);
+      setLoadingStats(false);
     }
   };
 
   useEffect(() => {
-    fetchBookings();
+    fetchStats();
   }, []);
 
-  const approveBooking = async (id) => {
-    try {
-      await axios.patch(
-        `http://localhost:8080/api/admin/bookings/${id}/approve`,
-        {},
-        {
-          withCredentials: true,
-        }
-      );
-      fetchBookings(); // refresh bookings after update
-    } catch (err) {
-      console.error(err);
-      alert("Failed to approve booking");
-    }
+  // ================= CHART DATA =================
+  const chartData = {
+    labels: revenueData.map((d) => d.month), // e.g., ["Jan", "Feb"]
+    datasets: [
+      {
+        label: "Revenue",
+        data: revenueData.map((d) => d.amount),
+        borderColor: "#3b82f6",
+        backgroundColor: "rgba(59, 130, 246, 0.2)",
+        tension: 0.4,
+      },
+    ],
   };
 
-  const rejectBooking = async (id) => {
-    try {
-      await axios.patch(
-        `http://localhost:8080/api/admin/bookings/${id}/reject`,
-        {},
-        {
-          withCredentials: true,
-        }
-      );
-      fetchBookings(); // refresh bookings after update
-    } catch (err) {
-      console.error(err);
-      alert("Failed to reject booking");
-    }
+  const chartOptions = {
+    responsive: true,
+    plugins: {
+      legend: { position: "top" },
+      title: { display: true, text: "Revenue Trend" },
+    },
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Content */}
-      <div className="p-4 sm:p-6 lg:p-10">
-        {/* Stats Section */}
-        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
-          <div className="bg-white p-4 sm:p-6 rounded-xl shadow flex items-center gap-4">
-            <div className="bg-blue-100 text-blue-600 p-3 sm:p-4 rounded-full">
-              <MdMiscellaneousServices size={28} />
-            </div>
-            <div>
-              <p className="text-gray-500 text-sm sm:text-base">
-                Total Bookings
-              </p>
-              <p className="text-2xl sm:text-3xl font-bold">
-                {bookings.length}
-              </p>
-            </div>
-          </div>
+    <div className="min-h-screen bg-gray-100 p-4 md:p-6">
+      {/* STATS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <StatCard
+          icon={<FiUser size={28} />}
+          label="Users"
+          value={stats.totalUsers}
+          color="purple"
+          loading={loadingStats}
+        />
+        <StatCard
+          icon={<FiUser size={28} />}
+          label="Mechanics"
+          value={stats.totalMechanics}
+          color="green"
+          loading={loadingStats}
+        />
+        <StatCard
+          icon={<MdMiscellaneousServices size={28} />}
+          label="Bookings"
+          value={stats.totalBookings}
+          color="blue"
+          loading={loadingStats}
+        />
+        <StatCard
+          label="Revenue"
+          value={`₹${stats.revenue}`}
+          color="yellow"
+          loading={loadingStats}
+        />
+      </div>
 
-          <div className="bg-white p-4 sm:p-6 rounded-xl shadow flex items-center gap-4">
-            <div className="bg-green-100 text-green-600 p-3 sm:p-4 rounded-full">
-              <FiUser size={28} />
-            </div>
-            <div>
-              <p className="text-gray-500 text-sm sm:text-base">
-                Active Mechanics
-              </p>
-              <p className="text-2xl sm:text-3xl font-bold">18</p>
-            </div>
-          </div>
+      {/* REVENUE GRAPH */}
+      <div className="bg-white p-4 sm:p-6 rounded-xl shadow mb-8">
+        <h3 className="text-lg sm:text-xl font-semibold mb-4">Revenue Graph</h3>
+        <Line data={chartData} options={chartOptions} />
+      </div>
 
-          <div className="bg-white p-4 sm:p-6 rounded-xl shadow flex items-center gap-4">
-            <div className="bg-purple-100 text-purple-600 p-3 sm:p-4 rounded-full">
-              <FiUser size={28} />
-            </div>
-            <div>
-              <p className="text-gray-500 text-sm sm:text-base">Users</p>
-              <p className="text-2xl sm:text-3xl font-bold">430</p>
-            </div>
-          </div>
-
-          <div className="bg-white p-4 sm:p-6 rounded-xl shadow flex items-center gap-4">
-            <div className="bg-yellow-100 text-yellow-600 p-3 sm:p-4 rounded-full">
-              ₹
-            </div>
-            <div>
-              <p className="text-gray-500 text-sm sm:text-base">Revenue</p>
-              <p className="text-2xl sm:text-3xl font-bold">₹85,000</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Table Wrapper */}
-        <div className="bg-white p-4 sm:p-6 rounded-xl shadow overflow-x-auto">
-          <h3 className="text-lg sm:text-xl font-semibold mb-4">
-            Recent Bookings
-          </h3>
-
-          {loading ? (
-            <p>Loading...</p>
-          ) : error ? (
-            <p className="text-red-600">{error}</p>
-          ) : bookings.length === 0 ? (
-            <p>No bookings found.</p>
-          ) : (
-            <div className="bg-white p-4 sm:p-6 rounded-xl shadow overflow-x-auto">
-            <table className="w-full text-sm sm:text-base min-w-[800px]">
-              <thead>
-                <tr className="bg-gray-200 text-left">
-                  <th className="p-3">User</th>
-                  <th className="p-3">Bike</th>
-                  <th className="p-3">Service</th>
-                  <th className="p-3">Date</th>
-                  <th className="p-3">Price</th>
-                  <th className="p-3">Status</th>
-                  <th className="p-3">Actions</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {bookings.map((b) => (
-                  <tr
-                    key={b.id}
-                    onClick={() => router.push(`/admin/booking/${b.id}`)}
-                    className="border-b hover:bg-gray-50 cursor-pointer"
-                  >
-                    <td className="p-3">{b.user?.name || "N/A"}</td>
-
-                    <td className="p-3">
-                      {b.bikeCompany?.name || "N/A"} {b.bikeModel?.name || ""}
-                    </td>
-
-                    <td className="p-3">{b.serviceType}</td>
-
-                    <td className="p-3">{b.appointmentDate}</td>
-
-                    {/* NEW PRICE CELL */}
-                    <td className="p-3 font-semibold text-blue-600">
-                      ₹{b.servicePrice || b.price || "0"}
-                    </td>
-
-                    <td
-                      className={`p-3 font-semibold
-            ${b.status === "COMPLETED" ? "text-green-600" : ""}
-            ${b.status === "CANCELLED" ? "text-red-600" : ""}
-            ${b.status === "PENDING" ? "text-yellow-600" : ""}
-          `}
-                    >
-                      {b.status}
-                    </td>
-
-                    <td
-                      className="p-3 flex flex-col sm:flex-row gap-2"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {b.status === "PENDING" && (
-                        <div>
-                          <button
-                            onClick={() => approveBooking(b.id)}
-                            className="px-3 py-1 bg-green-500 text-white rounded text-sm"
-                          >
-                            COMPLETED
-                          </button>
-
-                          <button
-                            onClick={() => rejectBooking(b.id)}
-                            className="px-3 py-1 bg-red-500 text-white rounded text-sm"
-                          >
-                            CANCELLED
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            </div>
-          )}
-        </div>
+      {/* QUICK LINKS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <LinkCard label="View Bookings" href="/admin/bookings" />
+        <LinkCard label="Manage Users" href="/admin/allusers" />
+        <LinkCard label="Manage Mechanics" href="/admin/mechanics" />
+        <LinkCard label="Settings" href="/admin/settings" />
       </div>
     </div>
   );
 }
+
+/* ================= STAT CARD ================= */
+const StatCard = ({ icon, label, value, color, loading }) => (
+  <div className="bg-white p-4 sm:p-6 rounded-xl shadow flex gap-4 items-center">
+    <div className={`bg-${color}-100 text-${color}-600 p-4 rounded-full`}>
+      {icon}
+    </div>
+    <div>
+      <p className="text-gray-500">{label}</p>
+      <p className="text-2xl sm:text-3xl font-bold">
+        {loading ? "..." : value}
+      </p>
+    </div>
+  </div>
+);
+
+const LinkCard = ({ label, href }) => (
+  <a
+    href={href}
+    className="bg-white p-6 rounded-xl shadow hover:shadow-md transition flex justify-center items-center font-semibold"
+  >
+    {label}
+  </a>
+);

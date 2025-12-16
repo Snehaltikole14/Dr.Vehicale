@@ -1,28 +1,37 @@
 "use client";
 
-import { FiMenu, FiUser, FiSettings, FiBell } from "react-icons/fi";
+import { FiMenu, FiUser, FiSettings, FiBell, FiLogOut } from "react-icons/fi";
 import Link from "next/link";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function AdminLayout({ children }) {
   const [open, setOpen] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const router = useRouter();
 
   const menuItems = [
     { label: "Dashboard", href: "/admin", icon: <FiMenu size={20} /> },
-    { label: "Bookings", href: "/admin/bookings", icon: <FiBell size={20} /> },
+    { label: "Bookings", href: "/admin/booking", icon: <FiBell size={20} /> },
     {
       label: "Mechanics",
       href: "/admin/mechanics",
       icon: <FiUser size={20} />,
     },
-    { label: "Users", href: "/admin/users", icon: <FiUser size={20} /> },
+    { label: "Users", href: "/admin/AllUsers", icon: <FiUser size={20} /> },
     {
       label: "Settings",
       href: "/admin/settings",
       icon: <FiSettings size={20} />,
     },
   ];
+
+  // ---------- LOGOUT FUNCTION ----------
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    router.push("/login");
+  };
 
   return (
     <div className="flex min-h-screen bg-gray-100">
@@ -36,7 +45,6 @@ export default function AdminLayout({ children }) {
       >
         <div className="flex items-center justify-between mb-6">
           <h1 className={`text-xl font-bold ${!open && "hidden"}`}>Admin</h1>
-
           <FiMenu
             size={22}
             className="cursor-pointer"
@@ -52,7 +60,7 @@ export default function AdminLayout({ children }) {
               className="flex items-center gap-3 hover:text-blue-600"
             >
               {item.icon}
-              {open &&  <span>{item.label}</span>}
+              {open && <span>{item.label}</span>}
             </Link>
           ))}
         </nav>
@@ -75,7 +83,6 @@ export default function AdminLayout({ children }) {
       >
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-xl font-bold">Admin</h1>
-
           <FiMenu
             size={22}
             className="cursor-pointer"
@@ -111,11 +118,30 @@ export default function AdminLayout({ children }) {
 
           <h2 className="text-lg md:text-xl font-semibold">Admin Dashboard</h2>
 
-          <div className="flex items-center gap-4">
+          <div className="relative flex items-center gap-4">
             <FiBell size={22} className="cursor-pointer" />
             <FiSettings size={22} className="cursor-pointer" />
-            <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center cursor-pointer">
-              <FiUser size={20} />
+
+            {/* ---------- PROFILE IMAGE ---------- */}
+            <div className="relative">
+              <div
+                className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center cursor-pointer"
+                onClick={() => setProfileOpen(!profileOpen)}
+              >
+                <FiUser size={20} />
+              </div>
+
+              {/* ---------- DROPDOWN ---------- */}
+              {profileOpen && (
+                <div className="absolute right-0 mt-2 w-40 bg-white border rounded shadow-lg z-50">
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-gray-100 w-full"
+                  >
+                    <FiLogOut /> Logout
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </header>
