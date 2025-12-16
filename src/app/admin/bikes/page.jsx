@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
 
-const API = "http://localhost:8080/api/admin";
+const API = "https://dr-vehicle-backend.onrender.com/api/admin";
 
 export default function AdminBikesPage() {
   const [companies, setCompanies] = useState([]);
