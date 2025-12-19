@@ -86,12 +86,12 @@ export default function BikeServicesSection() {
               </ul>
 
               <div className="mt-8">
-              <Link
-                          href={localStorage.getItem("token") ? "/book" : "/login"}
-                          className="px-12 py-4 rounded-full bg-cyan-500 text-white font-semibold shadow-xl hover:bg-cyan-400 transition"
-                        >
-                          Book Now
-                        </Link>
+                <a
+                  href={localStorage.getItem("token") ? "/book" : "/login"}
+                  className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-yellow-600 text-white hover:bg-yellow-700"
+                >
+                  Book Now <ChevronRight size={18} />
+                </a>
               </div>
             </motion.div>
           ))}
