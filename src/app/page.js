@@ -91,42 +91,55 @@ export default function HomePage() {
         </motion.div>
       </section>
 
-      {/* Services Section */}
-      <section className="py-24">
-        <div className="max-w-7xl mx-auto px-6 md:px-10 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-16">
-            Our Premium Services
-          </h2>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-10">
-            {[
-              {
-                title: "Custom Bike Servicing",
-                desc: "Tailored service plans for every bike type.",
-              },
-              {
-                title: "Instant Slot Booking",
-                desc: "Book your preferred date & time online.",
-              },
-              {
-                title: "Premium Products",
-                desc: "Only high-quality, trusted maintenance products.",
-              },
-            ].map((s, i) => (
+      {/* SERVICES SECTION */}
+      <section className="py-20 bg-gradient-to-br from-blue-50 to-white">
+        <h2 className="text-3xl font-bold text-center text-gray-800 mb-12">
+          Our Premium Services
+        </h2>
+
+        <div className="max-w-7xl mx-auto px-6 md:px-10 grid md:grid-cols-3 gap-10">
+          {[
+            {
+              icon: "🛠️",
+              title: "Customized Servicing",
+              desc: "Professional tools, accurate diagnostics and complete maintenance.",
+              link: "/custom-service",
+              color: "from-red-600 to-cyan-500",
+            },
+            {
+              icon: "⚡",
+              title: "Instant Booking",
+              desc: "Book your preferred slot instantly with a smooth online process.",
+              link: "/book",
+              color: "from-red-500 to-red-700",
+            },
+            {
+              icon: "✨",
+              title: "Premium Products",
+              desc: "We only use high-quality, safe and eco-friendly products.",
+              link: "/services/premium-products",
+              color: "from-cyan-500 to-red-400",
+            },
+          ].map((service, index) => (
+            <Link key={index} href={service.link}>
               <motion.div
-                key={i}
-                whileHover={{ y: -8 }}
-                className="bg-white/20 backdrop-blur-md p-8 rounded-3xl shadow-xl border border-white/30 transition"
+                whileHover={{ y: -6 }}
+                className="p-8 bg-white rounded-3xl shadow-lg hover:shadow-2xl border border-gray-100 transition"
               >
-                <h3 className="text-xl font-semibold text-[#111827]">
-                  {s.title}
+                <div
+                  className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${service.color} text-white text-3xl flex items-center justify-center shadow-md`}
+                >
+                  {service.icon}
+                </div>
+
+                <h3 className="text-xl font-semibold mt-4 text-gray-800">
+                  {service.title}
                 </h3>
-                <p className="mt-3 text-gray-700">{s.desc}</p>
-                <span className="mt-6 inline-flex items-center gap-2 text-cyan-500 font-medium">
-                  Learn more <ArrowRight size={16} />
-                </span>
+
+                <p className="text-gray-600 mt-2">{service.desc}</p>
               </motion.div>
-            ))}
-          </div>
+            </Link>
+          ))}
         </div>
       </section>
 

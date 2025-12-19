@@ -50,8 +50,8 @@ export default function ShopLocation() {
 
               {/* Address */}
               <p className="text-gray-700 mt-5 text-sm sm:text-base leading-relaxed">
-                Amanora Park Town Main Rd,
-                <br />
+                282/12
+               
                 Laxmi Colony, Hadapsar,
                 <br />
                 Pune, Maharashtra 411028
@@ -66,14 +66,14 @@ export default function ShopLocation() {
               {/* ACTION BUTTONS */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex gap-3 mt-6">
                 <a
-                  href="tel:+919XXXXXXXXX"
+                  href="tel:+917447661899"
                   className="flex justify-center items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg text-sm sm:text-base font-medium"
                 >
                   <FiPhone /> Call Now
                 </a>
 
                 <a
-                  href="https://wa.me/9322685296"
+                  href="https://wa.me/7066672848"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex justify-center items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg text-sm sm:text-base font-medium"

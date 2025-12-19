@@ -4,8 +4,17 @@ import React from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { Wrench, ShieldCheck, Bike, Star } from "lucide-react";
+import { useState,useEffect } from "react";
 
 export default function AboutPage() {
+   const [href, setHref] = useState("/login");
+
+   useEffect(() => {
+     const token = localStorage.getItem("token");
+     if (token) {
+       setHref("/book");
+     }
+   }, []);
   return (
     <section className="bg-gray-50 text-gray-800">
       {/* 🌟 Hero Section with Motion */}
@@ -51,7 +60,7 @@ export default function AboutPage() {
           </motion.p>
 
           <motion.a
-            href="/book"
+            href= { href }
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             transition={{ type: "spring", stiffness: 200 }}
@@ -207,7 +216,7 @@ export default function AboutPage() {
           <p className="text-gray-700">✉️ official@drvehiclecare.com</p>
 
           <motion.a
-            href="/book"
+            href={href}            
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             className="inline-block mt-6 px-8 py-3 bg-yellow-600 text-white font-semibold rounded-full hover:bg-yellow-700 transition-all"
