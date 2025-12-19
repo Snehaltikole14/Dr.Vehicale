@@ -78,12 +78,12 @@ export default function LoginPage() {
               <motion.div
                 animate={{ scale: [1, 1.2, 1] }}
                 transition={{ duration: 1, repeat: Infinity }}
-                className="text-5xl mb-3"
+                className="text-5xl mb-3 flex justify-center items-center"
               >
                 {popup.type === "success" ? (
-                  <AiOutlineCheckCircle className="text-green-600" />
+                  <AiOutlineCheckCircle className="text-green-600 " />
                 ) : (
-                  <AiOutlineCloseCircle className="text-red-600" />
+                  <AiOutlineCloseCircle className="text-red-600  " />
                 )}
               </motion.div>
 

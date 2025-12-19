@@ -25,7 +25,7 @@ export default function CustomService() {
   const [price, setPrice] = useState(null);
   const [editingId, setEditingId] = useState(null);
 
-  const userId = 1; // replace with actual logged-in user ID
+  const userId = 1;
 
   // ---------------- Load companies ----------------
   useEffect(() => {
@@ -34,9 +34,9 @@ export default function CustomService() {
       .then((data) => setCompanies(data));
   }, []);
 
-  // ---------------- Load query params (replaces useSearchParams) ----------------
+  // ---------------- Load query params ----------------
   useEffect(() => {
-    if (typeof window === "undefined") return; // ensure running on client
+    if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const companyId = params.get("companyId");
     const modelId = params.get("modelId");
@@ -44,156 +44,100 @@ export default function CustomService() {
     if (modelId) setSelectedModel(modelId);
   }, []);
 
-  // ---------------- Load models when company changes ----------------
+  // ---------------- Load models ----------------
   useEffect(() => {
-    if (selectedCompany) {
-      fetch(
-        `http://localhost:8080/api/bikes/companies/${selectedCompany}/models`
-      )
-        .then((res) => res.json())
-        .then((data) => setModels(data));
-    } else {
-      setModels([]);
-      setSelectedModel("");
-      setCc("");
-    }
+    if (!selectedCompany) return;
+    fetch(`http://localhost:8080/api/bikes/companies/${selectedCompany}/models`)
+      .then((res) => res.json())
+      .then((data) => setModels(data));
   }, [selectedCompany]);
 
-  // ---------------- Auto-fill CC when model selected ----------------
+  // ---------------- Auto-fill CC ----------------
   useEffect(() => {
-    if (selectedModel) {
-      const model = models.find((m) => m.id == selectedModel);
-      if (model) setCc(model.engineCc);
-    } else {
-      setCc("");
-    }
+    const model = models.find((m) => m.id == selectedModel);
+    setCc(model ? model.engineCc : "");
   }, [selectedModel, models]);
 
   // ---------------- Fetch saved services ----------------
   const fetchSavedServices = async () => {
-    try {
-      const res = await fetch(
-        `http://localhost:8080/api/customized/user/${userId}`
-      );
-      if (!res.ok) throw new Error("Failed to fetch saved services");
-      const data = await res.json();
-      setSavedServices(data);
-    } catch (err) {
-      console.error(err);
-    }
+    const res = await fetch(
+      `http://localhost:8080/api/customized/user/${userId}`
+    );
+    if (res.ok) setSavedServices(await res.json());
   };
 
   useEffect(() => {
     fetchSavedServices();
-  }, [userId]);
+  }, []);
 
-  // ---------------- Auto-calculate price ----------------
+  // ---------------- Auto price ----------------
   useEffect(() => {
-    const calculatePrice = async () => {
-      if (!selectedCompany || !selectedModel || !cc) {
-        setPrice(null);
-        return;
-      }
-      try {
-        const res = await fetch(
-          "http://localhost:8080/api/customized/calculate",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              bikeCompany: selectedCompany,
-              bikeModel: selectedModel,
-              cc,
-              ...services,
-            }),
-          }
-        );
-        const data = await res.json();
-        setPrice(data);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    calculatePrice();
+    if (!selectedCompany || !selectedModel || !cc) {
+      setPrice(null);
+      return;
+    }
+
+    fetch("http://localhost:8080/api/customized/calculate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        bikeCompany: selectedCompany,
+        bikeModel: selectedModel,
+        cc,
+        ...services,
+      }),
+    })
+      .then((res) => res.json())
+      .then(setPrice);
   }, [selectedCompany, selectedModel, cc, services]);
 
-  // ---------------- Save or update service ----------------
+  // ---------------- Save ----------------
   const handleSave = async () => {
-    const body = {
-      userId,
-      bikeCompany: selectedCompany,
-      bikeModel: selectedModel,
-      cc,
-      ...services,
-      totalPrice: price,
-    };
-    const url = editingId
-      ? `http://localhost:8080/api/customized/${editingId}`
-      : "http://localhost:8080/api/customized/save";
-    const method = editingId ? "PUT" : "POST";
-
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    const res = await fetch(
+      editingId
+        ? `http://localhost:8080/api/customized/${editingId}`
+        : "http://localhost:8080/api/customized/save",
+      {
+        method: editingId ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          bikeCompany: selectedCompany,
+          bikeModel: selectedModel,
+          cc,
+          ...services,
+          totalPrice: price,
+        }),
+      }
+    );
 
     if (res.ok) {
-      const savedService = await res.json();
-      alert(editingId ? "Updated successfully!" : "Saved successfully!");
-      // Redirect to BookingPage with query params
-      window.location.href = `/book?customServiceId=${savedService.id}&companyId=${savedService.bikeCompany}&modelId=${savedService.bikeModel}`;
+      const saved = await res.json();
+      window.location.href = `/book?customServiceId=${saved.id}&companyId=${saved.bikeCompany}&modelId=${saved.bikeModel}`;
     }
   };
 
-  // ---------------- Edit / Delete ----------------
-  const handleEdit = (service) => {
-    setEditingId(service.id);
-    setSelectedCompany(service.bikeCompany);
-    setSelectedModel(service.bikeModel);
-    setCc(service.cc);
-    setServices({
-      wash: service.wash,
-      oilChange: service.oilChange,
-      chainLube: service.chainLube,
-      engineTuneUp: service.engineTuneUp,
-      breakCheck: service.breakCheck,
-      fullbodyPolishing: service.fullbodyPolishing,
-      generalInspection: service.generalInspection,
-    });
-    setPrice(service.totalPrice);
-  };
-
-  const handleDelete = async (id) => {
-    if (!confirm("Delete this service?")) return;
-    const res = await fetch(`http://localhost:8080/api/customized/${id}`, {
-      method: "DELETE",
-    });
-    if (res.ok) fetchSavedServices();
-  };
-
-  const getCompanyName = (id) => companies.find((c) => c.id == id)?.name || id;
-
   return (
-    <main className="max-w-4xl mx-auto py-16 px-6">
-      <h1 className="text-4xl font-bold text-center text-blue-600 mb-10">
-        Build Your Customized Bike Service
+    <main className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
+      <h1 className="text-2xl sm:text-4xl font-bold text-center text-blue-600 mb-8">
+        Customized Bike Service
       </h1>
 
+      {/* FORM */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white shadow-xl rounded-3xl p-10 border border-gray-100"
+        className="bg-white rounded-2xl shadow-lg p-5 sm:p-8"
       >
         {/* Company */}
-        <div className="mb-6">
-          <label className="font-semibold">Select Bike Company</label>
+        <div className="mb-4">
+          <label className="font-semibold">Bike Company</label>
           <select
             className="w-full mt-2 p-3 border rounded-lg"
             value={selectedCompany}
             onChange={(e) => setSelectedCompany(e.target.value)}
           >
-            <option value="">-- Select Company --</option>
+            <option value="">Select Company</option>
             {companies.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -203,14 +147,14 @@ export default function CustomService() {
         </div>
 
         {/* Model */}
-        <div className="mb-6">
-          <label className="font-semibold">Select Bike Model</label>
+        <div className="mb-4">
+          <label className="font-semibold">Bike Model</label>
           <select
             className="w-full mt-2 p-3 border rounded-lg"
             value={selectedModel}
             onChange={(e) => setSelectedModel(e.target.value)}
           >
-            <option value="">-- Select Model --</option>
+            <option value="">Select Model</option>
             {models.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.modelName}
@@ -220,133 +164,78 @@ export default function CustomService() {
         </div>
 
         {/* CC */}
-        <div className="mb-6">
+        <div className="mb-4">
           <label className="font-semibold">Engine CC</label>
           <input
             disabled
-            value={cc || ""}
-            className="w-full mt-2 p-3 border rounded-lg bg-gray-100 text-gray-600"
+            value={cc}
+            className="w-full mt-2 p-3 bg-gray-100 border rounded-lg"
           />
         </div>
 
         {/* Services */}
-        <h2 className="text-xl font-semibold mt-6 mb-3">Select Services</h2>
-        <div className="grid grid-cols-2 gap-4">
-          {[
-            { key: "wash", label: "Bike Wash" },
-            { key: "oilChange", label: "Oil Change" },
-            { key: "chainLube", label: "Chain Lube" },
-            { key: "engineTuneUp", label: "Engine Tune-up" },
-            { key: "breakCheck", label: "Break Check" },
-            { key: "fullbodyPolishing", label: "Full-body Polishing" },
-            { key: "generalInspection", label: "General Inspection" },
-          ].map((s) => (
-            <label key={s.key} className="flex items-center space-x-3">
+        <h2 className="font-semibold text-lg mb-3">Services</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {Object.entries({
+            wash: "Bike Wash",
+            oilChange: "Oil Change",
+            chainLube: "Chain Lube",
+            engineTuneUp: "Engine Tune-up",
+            breakCheck: "Brake Check",
+            fullbodyPolishing: "Full Body Polishing",
+            generalInspection: "General Inspection",
+          }).map(([key, label]) => (
+            <label
+              key={key}
+              className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer"
+            >
               <input
                 type="checkbox"
-                checked={services[s.key]}
+                checked={services[key]}
                 onChange={(e) =>
-                  setServices({ ...services, [s.key]: e.target.checked })
+                  setServices({ ...services, [key]: e.target.checked })
                 }
               />
-              <span>{s.label}</span>
+              <span>{label}</span>
             </label>
           ))}
         </div>
 
         {/* Price */}
-        {price !== null && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mt-6 text-center bg-blue-50 py-4 rounded-lg border border-blue-100"
-          >
-            <h3 className="text-2xl font-bold text-blue-700">
-              Total Price: ₹{price}
-            </h3>
+        {price && (
+          <div className="mt-6 text-center bg-blue-50 p-4 rounded-xl">
+            <h3 className="text-xl font-bold text-blue-700">₹ {price}</h3>
             <button
               onClick={handleSave}
-              className="mt-4 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              className="mt-4 w-full sm:w-auto px-6 py-3 bg-green-600 text-white rounded-lg"
             >
               {editingId ? "Update Service" : "Save Service"}
             </button>
-          </motion.div>
+          </div>
         )}
       </motion.div>
 
-      {/* Saved Services */}
-      <div className="grid md:grid-cols-2 gap-6 mt-9">
+      {/* SAVED SERVICES */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-8">
         {savedServices.map((s) => (
-          <motion.div
+          <div
             key={s.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="p-6 bg-white rounded-3xl shadow-lg border border-gray-100 cursor-pointer hover:shadow-xl transition"
-            onClick={() =>
-              (window.location.href = `/book?customServiceId=${s.id}&companyId=${s.bikeCompany}&modelId=${s.bikeModel}`)
-            }
+            className="bg-white p-5 rounded-2xl shadow hover:shadow-lg"
           >
-            <h2 className="text-xl font-semibold text-gray-800 mb-2">
-              {s.bikeCompany} - {s.bikeModel} ({s.cc} CC)
-            </h2>
+            <h3 className="font-semibold text-lg">
+              {s.bikeCompany} - {s.bikeModel}
+            </h3>
+            <p className="text-sm text-gray-600 mt-1">{s.cc} CC</p>
+            <p className="font-bold mt-2">₹ {s.totalPrice}</p>
 
-            <p className="text-gray-600 mb-3">
-              <strong>Services:</strong>{" "}
-              {[
-                s.wash && "Wash",
-                s.oilChange && "Oil Change",
-                s.chainLube && "Chain Lube",
-                s.engineTuneUp && "Engine Tune-up",
-                s.breakCheck && "Brake Check",
-                s.fullbodyPolishing && "Full Body Polishing",
-                s.generalInspection && "General Inspection",
-              ]
-                .filter(Boolean)
-                .join(", ")}
-            </p>
-
-            <p className="text-gray-800 font-bold text-lg">
-              Total Price: ₹{s.totalPrice}
-            </p>
-
-            <div className="mt-4 flex gap-3">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation(); // prevent card click
-                  handleEdit(s);
-                }}
-                className="px-4 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600"
-              >
-                Edit
-              </button>
-
-              <button
-                onClick={(e) => {
-                  e.stopPropagation(); // prevent card click
-                  handleDelete(s.id);
-                }}
-                className="px-4 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-              >
-                Delete
-              </button>
-
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  window.location.href = `/book?customServiceId=${s.id}&companyId=${s.bikeCompany}&modelId=${s.bikeModel}`;
-                }}
-                className="px-4 py-1 bg-green-600 text-white rounded hover:bg-green-700"
-              >
+            <div className="flex flex-col sm:flex-row gap-2 mt-4">
+              <button className="bg-green-600 text-white px-4 py-2 rounded">
                 Book Now
               </button>
             </div>
-          </motion.div>
+          </div>
         ))}
       </div>
-
-      {/* )}
-        </section>
-      )} */}
     </main>
   );
 }
