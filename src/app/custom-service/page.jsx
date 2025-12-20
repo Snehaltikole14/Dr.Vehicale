@@ -29,7 +29,7 @@ export default function CustomService() {
 
   // ---------------- Load companies ----------------
   useEffect(() => {
-    fetch("http://localhost:8080/api/bikes/companies")
+    fetch("https://dr-vehicle-backend.onrender.com/api/bikes/companies")
       .then((res) => res.json())
       .then((data) => setCompanies(data));
   }, []);
@@ -47,7 +47,7 @@ export default function CustomService() {
   // ---------------- Load models ----------------
   useEffect(() => {
     if (!selectedCompany) return;
-    fetch(`http://localhost:8080/api/bikes/companies/${selectedCompany}/models`)
+    fetch(`https://dr-vehicle-backend.onrender.com/api/bikes/companies/${selectedCompany}/models`)
       .then((res) => res.json())
       .then((data) => setModels(data));
   }, [selectedCompany]);
@@ -61,7 +61,7 @@ export default function CustomService() {
   // ---------------- Fetch saved services ----------------
   const fetchSavedServices = async () => {
     const res = await fetch(
-      `http://localhost:8080/api/customized/user/${userId}`
+      `https://dr-vehicle-backend.onrender.com/api/customized/user/${userId}`
     );
     if (res.ok) setSavedServices(await res.json());
   };
@@ -77,7 +77,7 @@ export default function CustomService() {
       return;
     }
 
-    fetch("http://localhost:8080/api/customized/calculate", {
+    fetch("https://dr-vehicle-backend.onrender.com/api/customized/calculate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -95,8 +95,8 @@ export default function CustomService() {
   const handleSave = async () => {
     const res = await fetch(
       editingId
-        ? `http://localhost:8080/api/customized/${editingId}`
-        : "http://localhost:8080/api/customized/save",
+        ? `https://dr-vehicle-backend.onrender.com/api/customized/${editingId}`
+        : "https://dr-vehicle-backend.onrender.com/api/customized/save",
       {
         method: editingId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
