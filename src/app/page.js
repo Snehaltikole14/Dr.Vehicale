@@ -104,21 +104,21 @@ export default function HomePage() {
               title: "Customized Servicing",
               desc: "Professional tools, accurate diagnostics and complete maintenance.",
               link: "/custom-service",
-              color: "from-red-600 to-cyan-500",
+              color: "from-cyan-600 to-red-200",
             },
             {
               icon: "⚡",
               title: "Instant Booking",
               desc: "Book your preferred slot instantly with a smooth online process.",
               link: "/book",
-              color: "from-red-500 to-red-700",
+              color: "from-cyan-300 to-red-200",
             },
             {
               icon: "✨",
               title: "Premium Products",
               desc: "We only use high-quality, safe and eco-friendly products.",
               link: "/services/premium-products",
-              color: "from-cyan-500 to-red-400",
+              color: "from-cyan-500 to-red-200",
             },
           ].map((service, index) => (
             <Link key={index} href={service.link}>

@@ -12,7 +12,7 @@ export default function BookingDetails() {
   const fetchBooking = async () => {
     try {
       const res = await axios.get(
-        `http://localhost:8080/api/admin/bookings/${id}`,
+        `https://dr-vehicle-backend.onrender.com/api/admin/bookings/${id}`,
         { withCredentials: true }
       );
       setBooking(res.data);
@@ -133,7 +133,7 @@ export default function BookingDetails() {
               onClick={() =>
                 axios
                   .patch(
-                    `http://localhost:8080/api/admin/bookings/${id}/approve`,
+                    `https://dr-vehicle-backend.onrender.com/api/admin/bookings/${id}/approve`,
                     {},
                     { withCredentials: true }
                   )
@@ -148,7 +148,7 @@ export default function BookingDetails() {
               onClick={() =>
                 axios
                   .patch(
-                    `http://localhost:8080/api/admin/bookings/${id}/reject`,
+                    `https://dr-vehicle-backend.onrender.com/api/admin/bookings/${id}/reject`,
                     {},
                     { withCredentials: true }
                   )
