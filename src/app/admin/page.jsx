@@ -27,7 +27,7 @@ ChartJS.register(
   Legend
 );
 
-const API = "http://localhost:8080/api/admin";
+const API = "https://dr-vehicle-backend.onrender.com/api/admin";
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({

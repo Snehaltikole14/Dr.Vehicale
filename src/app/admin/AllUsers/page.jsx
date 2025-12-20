@@ -5,7 +5,7 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import { FiEdit, FiTrash2 } from "react-icons/fi";
 
-const API = "http://localhost:8080/api/admin";
+const API = "https://dr-vehicle-backend.onrender.com/api/admin";
 
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
