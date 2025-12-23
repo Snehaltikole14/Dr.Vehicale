@@ -1,18 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FiUser } from "react-icons/fi";
-import { MdMiscellaneousServices } from "react-icons/md";
+import { FiUsers, FiSettings, FiUser } from "react-icons/fi";
+import { MdOutlineBookOnline, MdMiscellaneousServices } from "react-icons/md";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { Line } from "react-chartjs-2";
+
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
   PointElement,
   LineElement,
-  Title,
   Tooltip,
   Legend,
 } from "chart.js";
@@ -22,37 +22,50 @@ ChartJS.register(
   LinearScale,
   PointElement,
   LineElement,
-  Title,
   Tooltip,
   Legend
 );
 
 const API = "https://dr-vehicle-backend.onrender.com/api/admin";
 
+/* ===== COLOR MAP ===== */
+const COLOR_MAP = {
+  purple: "from-purple-500 to-purple-600",
+  blue: "from-blue-500 to-blue-600",
+  green: "from-green-500 to-green-600",
+};
+
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
     totalUsers: 0,
-    totalMechanics: 0,
-    revenue: 0,
     totalBookings: 0,
+    revenue: 0, // MONTHLY revenue
   });
-  const [revenueData, setRevenueData] = useState([]);
-  const [loadingStats, setLoadingStats] = useState(true);
 
-  // ================= FETCH STATS =================
+  const [revenueByMonth, setRevenueByMonth] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  /* ===== FETCH STATS ===== */
   const fetchStats = async () => {
     try {
-      setLoadingStats(true);
+      setLoading(true);
       const res = await axios.get(`${API}/stats`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
       });
-      setStats(res.data);
-      setRevenueData(res.data.revenueByMonth || []); // revenue by month array from backend
+
+      setStats({
+        totalUsers: res.data.totalUsers || 0,
+        totalBookings: res.data.totalBookings || 0,
+        revenue: res.data.revenue || 0,
+      });
+
+      setRevenueByMonth(res.data.revenueByMonth || []);
     } catch (err) {
-      console.error(err);
-      toast.error("Failed to fetch stats");
+      toast.error("Failed to load admin dashboard");
     } finally {
-      setLoadingStats(false);
+      setLoading(false);
     }
   };
 
@@ -60,98 +73,101 @@ export default function AdminDashboard() {
     fetchStats();
   }, []);
 
-  // ================= CHART DATA =================
+  /* ===== CHART DATA ===== */
   const chartData = {
-    labels: revenueData.map((d) => d.month), // e.g., ["Jan", "Feb"]
+    labels: revenueByMonth.map((d) => d.month),
     datasets: [
       {
-        label: "Revenue",
-        data: revenueData.map((d) => d.amount),
-        borderColor: "#3b82f6",
-        backgroundColor: "rgba(59, 130, 246, 0.2)",
+        label: "Monthly Revenue",
+        data: revenueByMonth.map((d) => d.amount),
+        borderWidth: 2,
         tension: 0.4,
+        fill: true,
       },
     ],
   };
 
-  const chartOptions = {
-    responsive: true,
-    plugins: {
-      legend: { position: "top" },
-      title: { display: true, text: "Revenue Trend" },
-    },
-  };
-
   return (
-    <div className="min-h-screen bg-gray-100 p-4 md:p-6">
-      {/* STATS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div className="min-h-screen bg-slate-100 p-4 md:p-6">
+      {/* ===== TITLE ===== */}
+      <h1 className="text-2xl font-bold mb-6">Admin Dashboard</h1>
+
+      {/* ===== STATS ===== */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
         <StatCard
-          icon={<FiUser size={28} />}
+          icon={<FiUsers size={26} />}
           label="Users"
           value={stats.totalUsers}
-          color="purple"
-          loading={loadingStats}
+          gradient={COLOR_MAP.purple}
+          loading={loading}
         />
+
         <StatCard
-          icon={<FiUser size={28} />}
-          label="Mechanics"
-          value={stats.totalMechanics}
-          color="green"
-          loading={loadingStats}
-        />
-        <StatCard
-          icon={<MdMiscellaneousServices size={28} />}
+          icon={<MdOutlineBookOnline size={26} />}
           label="Bookings"
           value={stats.totalBookings}
-          color="blue"
-          loading={loadingStats}
+          gradient={COLOR_MAP.blue}
+          loading={loading}
         />
+
         <StatCard
-          label="Revenue"
+          icon={<MdMiscellaneousServices size={26} />}
+          label="Monthly Revenue"
           value={`₹${stats.revenue}`}
-          color="yellow"
-          loading={loadingStats}
+          gradient={COLOR_MAP.green}
+          loading={loading}
         />
       </div>
 
-      {/* REVENUE GRAPH */}
-      <div className="bg-white p-4 sm:p-6 rounded-xl shadow mb-8">
-        <h3 className="text-lg sm:text-xl font-semibold mb-4">Revenue Graph</h3>
-        <Line data={chartData} options={chartOptions} />
+      {/* ===== CHART ===== */}
+      <div className="bg-white p-6 rounded-2xl shadow mb-10">
+        <h3 className="text-lg font-semibold mb-4">Monthly Revenue</h3>
+        <Line data={chartData} />
       </div>
 
-      {/* QUICK LINKS */}
+      {/* ===== QUICK LINKS ===== */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <LinkCard label="View Bookings" href="/admin/bookings" />
-        <LinkCard label="Manage Users" href="/admin/allusers" />
-        <LinkCard label="Manage Mechanics" href="/admin/mechanics" />
-        <LinkCard label="Settings" href="/admin/settings" />
+        <LinkCard
+          label="View Bookings"
+          icon={<MdOutlineBookOnline />}
+          href="/admin/bookings"
+        />
+        <LinkCard
+          label="Manage Users"
+          icon={<FiUsers />}
+          href="/admin/allusers"
+        />
+        <LinkCard label="Mechanics" icon={<FiUser />} href="/admin/mechanics" />
+        <LinkCard
+          label="Settings"
+          icon={<FiSettings />}
+          href="/admin/settings"
+        />
       </div>
     </div>
   );
 }
 
-/* ================= STAT CARD ================= */
-const StatCard = ({ icon, label, value, color, loading }) => (
-  <div className="bg-white p-4 sm:p-6 rounded-xl shadow flex gap-4 items-center">
-    <div className={`bg-${color}-100 text-${color}-600 p-4 rounded-full`}>
+/* ===== STAT CARD ===== */
+const StatCard = ({ icon, label, value, gradient, loading }) => (
+  <div className="bg-white rounded-2xl shadow p-5 flex items-center gap-4">
+    <div className={`bg-gradient-to-br ${gradient} text-white p-4 rounded-xl`}>
       {icon}
     </div>
     <div>
-      <p className="text-gray-500">{label}</p>
-      <p className="text-2xl sm:text-3xl font-bold">
-        {loading ? "..." : value}
-      </p>
+      <p className="text-gray-500 text-sm">{label}</p>
+      <p className="text-2xl font-bold">{loading ? "..." : value}</p>
     </div>
   </div>
 );
 
-const LinkCard = ({ label, href }) => (
+/* ===== LINK CARD ===== */
+const LinkCard = ({ label, icon, href }) => (
   <a
     href={href}
-    className="bg-white p-6 rounded-xl shadow hover:shadow-md transition flex justify-center items-center font-semibold"
+    className="bg-white rounded-2xl shadow p-6 flex items-center justify-center gap-3 font-semibold hover:bg-slate-50 transition"
   >
+    <span className="text-xl">{icon}</span>
     {label}
   </a>
 );

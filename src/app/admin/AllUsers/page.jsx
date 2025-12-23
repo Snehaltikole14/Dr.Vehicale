@@ -5,7 +5,7 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import { FiEdit, FiTrash2 } from "react-icons/fi";
 
-const API = "https://dr-vehicle-backend.onrender.com/api/admin";
+const API = "https://dr-vehicle-backend.onrender.com/api";
 
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
@@ -16,7 +16,7 @@ export default function UsersPage() {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${API}/customers`, {
+      const res = await axios.get(`${API}/admin/customers`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },

@@ -25,7 +25,7 @@ export default function CustomService() {
   const [price, setPrice] = useState(null);
   const [editingId, setEditingId] = useState(null);
 
-  const userId = 1;
+  const userId = 1; // replace with actual logged-in user ID
 
   // ---------------- Load companies ----------------
   useEffect(() => {
@@ -34,9 +34,9 @@ export default function CustomService() {
       .then((data) => setCompanies(data));
   }, []);
 
-  // ---------------- Load query params ----------------
+  // ---------------- Load query params (replaces useSearchParams) ----------------
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined") return; // ensure running on client
     const params = new URLSearchParams(window.location.search);
     const companyId = params.get("companyId");
     const modelId = params.get("modelId");
@@ -44,78 +44,135 @@ export default function CustomService() {
     if (modelId) setSelectedModel(modelId);
   }, []);
 
-  // ---------------- Load models ----------------
+  // ---------------- Load models when company changes ----------------
   useEffect(() => {
-    if (!selectedCompany) return;
-    fetch(`https://dr-vehicle-backend.onrender.com/api/bikes/companies/${selectedCompany}/models`)
-      .then((res) => res.json())
-      .then((data) => setModels(data));
+    if (selectedCompany) {
+      fetch(
+        `https://dr-vehicle-backend.onrender.com/api/bikes/companies/${selectedCompany}/models`
+      )
+        .then((res) => res.json())
+        .then((data) => setModels(data));
+    } else {
+      setModels([]);
+      setSelectedModel("");
+      setCc("");
+    }
   }, [selectedCompany]);
 
-  // ---------------- Auto-fill CC ----------------
+  // ---------------- Auto-fill CC when model selected ----------------
   useEffect(() => {
-    const model = models.find((m) => m.id == selectedModel);
-    setCc(model ? model.engineCc : "");
+    if (selectedModel) {
+      const model = models.find((m) => m.id == selectedModel);
+      if (model) setCc(model.engineCc);
+    } else {
+      setCc("");
+    }
   }, [selectedModel, models]);
 
   // ---------------- Fetch saved services ----------------
   const fetchSavedServices = async () => {
-    const res = await fetch(
-      `https://dr-vehicle-backend.onrender.com/api/customized/user/${userId}`
-    );
-    if (res.ok) setSavedServices(await res.json());
+    try {
+      const res = await fetch(
+        `https://dr-vehicle-backend.onrender.com/api/customized/user/${userId}`
+      );
+      if (!res.ok) throw new Error("Failed to fetch saved services");
+      const data = await res.json();
+      setSavedServices(data);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   useEffect(() => {
     fetchSavedServices();
-  }, []);
+  }, [userId]);
 
-  // ---------------- Auto price ----------------
+  // ---------------- Auto-calculate price ----------------
   useEffect(() => {
-    if (!selectedCompany || !selectedModel || !cc) {
-      setPrice(null);
-      return;
-    }
-
-    fetch("https://dr-vehicle-backend.onrender.com/api/customized/calculate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        bikeCompany: selectedCompany,
-        bikeModel: selectedModel,
-        cc,
-        ...services,
-      }),
-    })
-      .then((res) => res.json())
-      .then(setPrice);
+    const calculatePrice = async () => {
+      if (!selectedCompany || !selectedModel || !cc) {
+        setPrice(null);
+        return;
+      }
+      try {
+        const res = await fetch(
+          "https://dr-vehicle-backend.onrender.com/api/customized/calculate",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              bikeCompany: selectedCompany,
+              bikeModel: selectedModel,
+              cc,
+              ...services,
+            }),
+          }
+        );
+        const data = await res.json();
+        setPrice(data);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    calculatePrice();
   }, [selectedCompany, selectedModel, cc, services]);
 
-  // ---------------- Save ----------------
+  // ---------------- Save or update service ----------------
   const handleSave = async () => {
-    const res = await fetch(
-      editingId
-        ? `https://dr-vehicle-backend.onrender.com/api/customized/${editingId}`
-        : "https://dr-vehicle-backend.onrender.com/api/customized/save",
-      {
-        method: editingId ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId,
-          bikeCompany: selectedCompany,
-          bikeModel: selectedModel,
-          cc,
-          ...services,
-          totalPrice: price,
-        }),
-      }
-    );
+    const body = {
+      userId,
+      bikeCompany: selectedCompany,
+      bikeModel: selectedModel,
+      cc,
+      ...services,
+      totalPrice: price,
+    };
+    const url = editingId
+      ? `https://dr-vehicle-backend.onrender.com/api/customized/${editingId}`
+      : "https://dr-vehicle-backend.onrender.com/api/customized/save";
+    const method = editingId ? "PUT" : "POST";
+
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
 
     if (res.ok) {
-      const saved = await res.json();
-      window.location.href = `/book?customServiceId=${saved.id}&companyId=${saved.bikeCompany}&modelId=${saved.bikeModel}`;
+      const savedService = await res.json();
+      alert(editingId ? "Updated successfully!" : "Saved successfully!");
+      // Redirect to BookingPage with query params
+      window.location.href = `/book?customServiceId=${savedService.id}&companyId=${savedService.bikeCompany}&modelId=${savedService.bikeModel}`;
     }
   };
+
+  // ---------------- Edit / Delete ----------------
+  const handleEdit = (service) => {
+    setEditingId(service.id);
+    setSelectedCompany(service.bikeCompany);
+    setSelectedModel(service.bikeModel);
+    setCc(service.cc);
+    setServices({
+      wash: service.wash,
+      oilChange: service.oilChange,
+      chainLube: service.chainLube,
+      engineTuneUp: service.engineTuneUp,
+      breakCheck: service.breakCheck,
+      fullbodyPolishing: service.fullbodyPolishing,
+      generalInspection: service.generalInspection,
+    });
+    setPrice(service.totalPrice);
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm("Delete this service?")) return;
+    const res = await fetch(`https://dr-vehicle-backend.onrender.com/api/customized/${id}`, {
+      method: "DELETE",
+    });
+    if (res.ok) fetchSavedServices();
+  };
+
+  const getCompanyName = (id) => companies.find((c) => c.id == id)?.name || id;
 
   return (
     <main className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
@@ -216,24 +273,72 @@ export default function CustomService() {
       </motion.div>
 
       {/* SAVED SERVICES */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-8">
+      <div className="grid md:grid-cols-2 gap-6 mt-9">
         {savedServices.map((s) => (
-          <div
+          <motion.div
             key={s.id}
-            className="bg-white p-5 rounded-2xl shadow hover:shadow-lg"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-6 bg-white rounded-3xl shadow-lg border border-gray-100 cursor-pointer hover:shadow-xl transition"
+            onClick={() =>
+              (window.location.href = `/book?customServiceId=${s.id}&companyId=${s.bikeCompany}&modelId=${s.bikeModel}`)
+            }
           >
-            <h3 className="font-semibold text-lg">
-              {s.bikeCompany} - {s.bikeModel}
-            </h3>
-            <p className="text-sm text-gray-600 mt-1">{s.cc} CC</p>
-            <p className="font-bold mt-2">₹ {s.totalPrice}</p>
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">
+              {s.bikeCompany} - {s.bikeModel} ({s.cc} CC)
+            </h2>
 
-            <div className="flex flex-col sm:flex-row gap-2 mt-4">
-              <button className="bg-green-600 text-white px-4 py-2 rounded">
+            <p className="text-gray-600 mb-3">
+              <strong>Services:</strong>{" "}
+              {[
+                s.wash && "Wash",
+                s.oilChange && "Oil Change",
+                s.chainLube && "Chain Lube",
+                s.engineTuneUp && "Engine Tune-up",
+                s.breakCheck && "Brake Check",
+                s.fullbodyPolishing && "Full Body Polishing",
+                s.generalInspection && "General Inspection",
+              ]
+                .filter(Boolean)
+                .join(", ")}
+            </p>
+
+            <p className="text-gray-800 font-bold text-lg">
+              Total Price: ₹{s.totalPrice}
+            </p>
+
+            <div className="mt-4 flex gap-3">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation(); // prevent card click
+                  handleEdit(s);
+                }}
+                className="px-4 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+              >
+                Edit
+              </button>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation(); // prevent card click
+                  handleDelete(s.id);
+                }}
+                className="px-4 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+              >
+                Delete
+              </button>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.location.href = `/book?customServiceId=${s.id}&companyId=${s.bikeCompany}&modelId=${s.bikeModel}`;
+                }}
+                className="px-4 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+              >
                 Book Now
               </button>
             </div>
-          </div>
+          </motion.div>
         ))}
       </div>
     </main>

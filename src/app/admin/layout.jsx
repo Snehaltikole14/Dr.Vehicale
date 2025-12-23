@@ -1,9 +1,18 @@
 "use client";
 
-import { FiMenu, FiUser, FiSettings, FiBell, FiLogOut } from "react-icons/fi";
+import {
+  FiMenu,
+  FiUser,
+  FiSettings,
+  FiBell,
+  FiLogOut,
+  FiBarChart2,
+} from "react-icons/fi";
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { FaMotorcycle, FaBicycle } from "react-icons/fa";
+
 
 export default function AdminLayout({ children }) {
   const [open, setOpen] = useState(true);
@@ -12,14 +21,15 @@ export default function AdminLayout({ children }) {
   const router = useRouter();
 
   const menuItems = [
-    { label: "Dashboard", href: "/admin", icon: <FiMenu size={20} /> },
+    { label: "Dashboard", href: "/admin", icon: <FiBarChart2 size={20} /> },
     { label: "Bookings", href: "/admin/booking", icon: <FiBell size={20} /> },
-    {
-      label: "Mechanics",
-      href: "/admin/mechanics",
-      icon: <FiUser size={20} />,
-    },
+    // {
+    //   label: "Mechanics",
+    //   href: "/admin/mechanics",
+    //   icon: <FiUser size={20} />,
+    // },
     { label: "Users", href: "/admin/AllUsers", icon: <FiUser size={20} /> },
+    { label: "Bikes", href: "/admin/bikes", icon: <FaMotorcycle size={20} /> },
     {
       label: "Settings",
       href: "/admin/settings",

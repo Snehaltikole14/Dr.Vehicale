@@ -128,51 +128,52 @@ export default function Header() {
             {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
-              animate={{ opacity: 0.4 }}
+              animate={{ opacity: 0.35 }}
               exit={{ opacity: 0 }}
               onClick={() => setMenuOpen(false)}
               className="fixed inset-0 bg-black z-40"
             />
 
             {/* Drawer */}
-            <motion.div
+            <motion.aside
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="md:hidden fixed top-0  right-0 w-64 h-full bg-white shadow-xl z-50 flex flex-col justify-between"
+              transition={{ type: "spring", stiffness: 260, damping: 28 }}
+              className="fixed top-0 right-0 h-full w-[280px] bg-white z-50 shadow-2xl flex flex-col"
             >
               {/* Close Button */}
-              <div className="flex justify-end p-4 border-b border-gray-200">
-                <button
-                  onClick={() => setMenuOpen(false)}
-                  className="text-black"
-                >
-                  <X size={28} />
-                </button>
-              </div>
+              <button
+                onClick={() => setMenuOpen(false)}
+                className="absolute top-4 right-4 text-gray-700 hover:text-black transition"
+              >
+                <X size={26} />
+              </button>
 
-              {/* Navigation Links */}
-              <div className="flex flex-col gap-2 px-4 py-4">
+              {/* Navigation */}
+              <nav className="mt-16 flex flex-col px-6 gap-3">
                 {navLinks.map((link) => (
                   <Link
                     key={link.name}
                     href={link.href}
                     onClick={() => setMenuOpen(false)}
-                    className="text-base font-medium text-gray-800 hover:text-cyan-500 transition py-2 px-2 rounded"
+                    className="text-[15px] font-semibold text-gray-800 hover:text-cyan-600 transition"
                   >
                     {link.name}
                   </Link>
                 ))}
-              </div>
+              </nav>
 
-              {/* User Actions */}
-              <div className="flex flex-col gap-2 px-4 pb-6 border-t border-gray-200">
+              {/* Divider */}
+              <div className="my-6 h-px bg-gray-200 mx-6" />
+
+              {/* User Section */}
+              <div className="px-6 flex flex-col gap-3">
                 {!user ? (
                   <Link
                     href="/login"
                     onClick={() => setMenuOpen(false)}
-                    className="w-full text-center py-2 rounded-lg bg-cyan-500 text-white font-semibold hover:bg-cyan-400 transition"
+                    className="w-full text-center py-2.5 rounded-lg bg-cyan-500 text-white font-semibold hover:bg-cyan-400 transition"
                   >
                     Sign In
                   </Link>
@@ -181,32 +182,37 @@ export default function Header() {
                     <Link
                       href="/profile"
                       onClick={() => setMenuOpen(false)}
-                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-gray-800 font-medium hover:bg-cyan-50 transition"
+                      className="flex items-center gap-3 text-gray-800 font-medium hover:text-cyan-600 transition"
                     >
-                      <User size={18} /> Profile
+                      <User size={18} /> My Profile
                     </Link>
 
                     <Link
                       href="/settings"
                       onClick={() => setMenuOpen(false)}
-                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-gray-800 font-medium hover:bg-cyan-50 transition"
+                      className="flex items-center gap-3 text-gray-800 font-medium hover:text-cyan-600 transition"
                     >
                       <Settings size={18} /> Settings
                     </Link>
-
-                    <button
-                      onClick={() => {
-                        handleLogout();
-                        setMenuOpen(false);
-                      }}
-                      className="w-full flex items-center justify-center px-3 py-2 rounded-lg bg-red-500 text-white font-semibold hover:bg-red-600 transition"
-                    >
-                      Logout
-                    </button>
                   </>
                 )}
               </div>
-            </motion.div>
+
+              {/* Logout */}
+              {user && (
+                <div className="mt-auto px-6 pb-6">
+                  <button
+                    onClick={() => {
+                      handleLogout();
+                      setMenuOpen(false);
+                    }}
+                    className="w-full py-2.5 rounded-lg border border-red-500 text-red-500 font-semibold hover:bg-red-50 transition"
+                  >
+                    Logout
+                  </button>
+                </div>
+              )}
+            </motion.aside>
           </>
         )}
       </AnimatePresence>

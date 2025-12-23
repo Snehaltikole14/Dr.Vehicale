@@ -11,7 +11,9 @@ export default function SavedServices() {
 
 const router = useRouter();
   useEffect(() => {
-    fetch(`http://localhost:8080/api/customized/user/${userId}`)
+    fetch(
+      `https://dr-vehicle-backend.onrender.com/api/customized/user/${userId}`
+    )
       .then((res) => res.json())
       .then((data) => setServices(data));
   }, []);
