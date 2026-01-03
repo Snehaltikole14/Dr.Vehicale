@@ -11,14 +11,19 @@ export default function RootLayout({ children }) {
   const hideHeader =
     pathname === "/login" ||
     pathname === "/signup" ||
-    pathname.startsWith("/admin"); // 👈 hide for admin
+    pathname.startsWith("/admin");
 
   return (
-    <html lang="en">
+    <html lang="en" style={{ colorScheme: "light" }}>
+      <head>
+        {/* 🔥 Prevent forced dark mode */}
+        <meta name="color-scheme" content="light" />
+      </head>
+
       <body
         className={`${
           !hideHeader ? "pt-[70px]" : "pt-0"
-        } flex flex-col min-h-screen`}
+        } flex flex-col min-h-screen bg-white text-black`}
       >
         {!hideHeader && <Header />}
 
