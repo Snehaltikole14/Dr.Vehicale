@@ -5,6 +5,8 @@ import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { ArrowRight, ShieldCheck, Clock, Wrench, Star } from "lucide-react";
+import { useRouter } from "next/navigation";
+
 
 const LocationModalWithMap = dynamic(
   () => import("./LocationModalWithMap/page.jsx"),
@@ -13,6 +15,14 @@ const LocationModalWithMap = dynamic(
 
 export default function HomePage() {
   const [locationConfirmed, setLocationConfirmed] = useState(false);
+
+  const router = useRouter();
+
+  const isLoggedIn = () => {
+    const user = JSON.parse(localStorage.getItem("user"));
+    return !!user?.id;
+  };
+
 
   useEffect(() => {
     if (localStorage.getItem("selectedLocation")) setLocationConfirmed(true);
@@ -120,25 +130,24 @@ export default function HomePage() {
               link: "/services/premium-products",
               color: "from-cyan-500 to-red-200",
             },
-          ].map((service, index) => (
-            <Link key={index} href={service.link}>
-              <motion.div
-                whileHover={{ y: -6 }}
-                className="p-8 bg-white rounded-3xl shadow-lg hover:shadow-2xl border border-gray-100 transition"
-              >
-                <div
-                  className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${service.color} text-white text-3xl flex items-center justify-center shadow-md`}
-                >
-                  {service.icon}
-                </div>
-
-                <h3 className="text-xl font-semibold mt-4 text-gray-800">
-                  {service.title}
-                </h3>
-
-                <p className="text-gray-600 mt-2">{service.desc}</p>
-              </motion.div>
-            </Link>
+          ].map((item, i) => (
+            <div
+              key={i}
+              onClick={() => {
+                if (!isLoggedIn()) {
+                  router.push("/login");
+                } else {
+                  router.push(item.link);
+                }
+              }}
+              className={`cursor-pointer bg-gradient-to-br ${item.color} p-[1px] rounded-2xl`}
+            >
+              <div className="bg-white rounded-2xl p-6 h-full hover:scale-[1.02] transition">
+                <div className="text-4xl mb-4">{item.icon}</div>
+                <h3 className="text-xl font-bold mb-2">{item.title}</h3>
+                <p className="text-gray-700">{item.desc}</p>
+              </div>
+            </div>
           ))}
         </div>
       </section>
