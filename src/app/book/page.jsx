@@ -145,30 +145,35 @@ export default function BookingPage() {
       const order = orderRes.data;
 
       // 3️⃣ Open Razorpay
-      new window.Razorpay({
-        key: "rzp_test_RUUsLf5ulwr2cW",
-        amount: order.amount,
-        currency: "INR",
-        name: "Bike Service",
-        description: "Service Payment",
-        order_id: order.id,
-        handler: async (response) => {
-          await API.post(
-            "/api/payments/verify",
-            {
-              bookingId: booking.id,
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-            },
-            { headers: { Authorization: `Bearer ${token}` } }
-          );
-
-          router.push("/book/booking-success");
+     new window.Razorpay({
+  key: "rzp_test_RUUsLf5ulwr2cW",
+  amount: order.amount, // in paise!
+  currency: "INR",
+  name: "Bike Service",
+  description: "Service Payment",
+  order_id: order.id,
+  handler: async (response) => {
+    try {
+      await API.post(
+        "/api/payments/verify",
+        {
+          bookingId: booking.id,
+          razorpay_order_id: response.razorpay_order_id,
+          razorpay_payment_id: response.razorpay_payment_id,
+          razorpay_signature: response.razorpay_signature,
         },
-        modal: { ondismiss: () => alert("Payment cancelled") },
-        theme: { color: "#dc2626" },
-      }).open();
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      router.push("/book/booking-success");
+    } catch (verifyErr) {
+      console.error("Verification failed:", verifyErr);
+      alert("Payment verification failed");
+    }
+  },
+  modal: { ondismiss: () => alert("Payment cancelled") },
+  theme: { color: "#dc2626" },
+}).open();
+
     } catch (err) {
       console.error(err);
       alert("Booking failed");
@@ -271,3 +276,4 @@ export default function BookingPage() {
     </div>
   );
 }
+
