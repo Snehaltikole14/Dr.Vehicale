@@ -19,9 +19,11 @@ export default function LoginPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+
     try {
+      // 🔑 Fix: send "identifier" instead of "emailOrName"
       const res = await API.post("/auth/login", {
-        emailOrName: form.loginId,
+        identifier: form.loginId.trim(),
         password: form.password,
       });
 
@@ -47,7 +49,7 @@ export default function LoginPage() {
         else if (res.data.role === "MECHANIC") router.push("/mechanic");
         else router.push("/");
       }, 1500);
-    } catch {
+    } catch (error) {
       setPopup({
         type: "error",
         title: "Login Failed!",
