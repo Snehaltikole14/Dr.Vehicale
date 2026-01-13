@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
 import { API } from "@/utils/api";
@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 
 export default function SignupPage() {
   const router = useRouter();
-  const [step, setStep] = useState(1); // 1 = request OTP, 2 = verify OTP
+  const [step, setStep] = useState(1);
 
   const [form, setForm] = useState({
     name: "",
@@ -16,13 +16,30 @@ export default function SignupPage() {
     otp: "",
   });
 
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [cooldown, setCooldown] = useState(0); // seconds
+
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  // ✅ STEP 1: REQUEST OTP (PHONE ONLY)
+  // ⏳ Countdown timer
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => {
+      setCooldown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
+
+  // ================= STEP 1: REQUEST OTP =================
   const requestOtp = async (e) => {
     e.preventDefault();
+
+    if (sendingOtp || cooldown > 0) return;
+
+    setSendingOtp(true);
+
     try {
       await API.post("/auth/signup/request-otp", {
         phone: form.phone,
@@ -30,6 +47,7 @@ export default function SignupPage() {
 
       toast.success("OTP sent to your phone!");
       setStep(2);
+      setCooldown(30); // ⏳ 30 sec cooldown
     } catch (err) {
       const message =
         err.response?.data?.message ||
@@ -37,10 +55,12 @@ export default function SignupPage() {
           ? err.response.data
           : "Failed to send OTP");
       toast.error(message);
+    } finally {
+      setSendingOtp(false);
     }
   };
 
-  // ✅ STEP 2: VERIFY OTP & SIGNUP
+  // ================= STEP 2: VERIFY OTP =================
   const verifyOtp = async (e) => {
     e.preventDefault();
     try {
@@ -81,7 +101,6 @@ export default function SignupPage() {
         </p>
 
         {step === 1 ? (
-          // ================= STEP 1 =================
           <form onSubmit={requestOtp}>
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-600 mb-1">
@@ -99,13 +118,22 @@ export default function SignupPage() {
 
             <button
               type="submit"
-              className="w-full bg-red-600 text-white py-2 rounded-lg font-semibold hover:bg-red-700 transition"
+              disabled={sendingOtp || cooldown > 0}
+              className={`w-full py-2 rounded-lg font-semibold transition
+                ${
+                  sendingOtp || cooldown > 0
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-red-600 hover:bg-red-700 text-white"
+                }`}
             >
-              Send OTP
+              {sendingOtp
+                ? "Sending OTP..."
+                : cooldown > 0
+                ? `Resend OTP in ${cooldown}s`
+                : "Send OTP"}
             </button>
           </form>
         ) : (
-          // ================= STEP 2 =================
           <form onSubmit={verifyOtp}>
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-600 mb-1">
@@ -116,7 +144,7 @@ export default function SignupPage() {
                 name="name"
                 value={form.name}
                 onChange={handleChange}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-500 outline-none"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 required
               />
             </div>
@@ -130,7 +158,7 @@ export default function SignupPage() {
                 name="password"
                 value={form.password}
                 onChange={handleChange}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-500 outline-none"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 required
               />
             </div>
@@ -144,14 +172,14 @@ export default function SignupPage() {
                 name="otp"
                 value={form.otp}
                 onChange={handleChange}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-500 outline-none"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 required
               />
             </div>
 
             <button
               type="submit"
-              className="w-full bg-red-600 text-white py-2 rounded-lg font-semibold hover:bg-red-700 transition"
+              className="w-full bg-red-600 text-white py-2 rounded-lg font-semibold hover:bg-red-700"
             >
               Verify OTP & Sign Up
             </button>
