@@ -4,6 +4,8 @@ import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { API } from "@/utils/api";
+import { motion, AnimatePresence } from "framer-motion";
+import { AiOutlineCheckCircle, AiOutlineCloseCircle } from "react-icons/ai";
 
 const TIME_SLOTS = [
   { value: "MORNING", label: "Morning (9am - 12pm)" },
@@ -20,6 +22,7 @@ export default function BookingPage() {
     formState: { errors },
   } = useForm({ mode: "onChange" });
 
+  const [popup, setPopup] = useState(null);
   const [companies, setCompanies] = useState([]);
   const [models, setModels] = useState([]);
   const [customData, setCustomData] = useState(null);
@@ -32,14 +35,19 @@ export default function BookingPage() {
   const selectedServiceType = watch("serviceType");
   const today = new Date().toISOString().split("T")[0];
 
-  /* ---------------- Load companies ---------------- */
+  const companyName =
+    companies.find((c) => c.id == watch("companyId"))?.name || "";
+  const modelName =
+    models.find((m) => m.id == watch("modelId"))?.modelName || "";
+
+  // ---------------- Load companies ----------------
   useEffect(() => {
     API.get("/api/bikes/companies")
       .then((res) => setCompanies(res.data))
       .catch(console.error);
   }, []);
 
-  /* ---------------- Load models ---------------- */
+  // ---------------- Load models ----------------
   useEffect(() => {
     if (!selectedCompany) {
       setModels([]);
@@ -52,16 +60,20 @@ export default function BookingPage() {
       .catch(console.error);
   }, [selectedCompany, setValue]);
 
-  /* ---------------- Load custom service ---------------- */
+  // ---------------- Load custom service ----------------
   useEffect(() => {
     if (initialized.current) return;
 
     const params = new URLSearchParams(window.location.search);
     const customServiceId = params.get("customServiceId");
+    const companyId = params.get("companyId");
+    const modelId = params.get("modelId");
+
+    if (companyId) setValue("companyId", companyId);
+    if (modelId) setValue("modelId", modelId);
 
     if (customServiceId) {
       setValue("serviceType", "CUSTOMIZED");
-
       API.get(`/api/customized/${customServiceId}`)
         .then((res) => {
           const data = res.data;
@@ -81,193 +93,233 @@ export default function BookingPage() {
     }
   }, [selectedServiceType]);
 
-  /* ---------------- Razorpay loader ---------------- */
-  const loadRazorpayScript = () =>
-    new Promise((resolve) => {
-      if (document.getElementById("razorpay-script")) return resolve(true);
-
-      const script = document.createElement("script");
-      script.id = "razorpay-script";
-      script.src = "https://checkout.razorpay.com/v1/checkout.js";
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
-
-  /* ---------------- Submit booking ---------------- */
+  // ---------------- Submit booking ----------------
   const onSubmit = async (data) => {
     const token = localStorage.getItem("token");
     if (!token) {
+      alert("Please login to continue");
       router.push("/login");
+      return;
+    }
+
+    if (data.serviceType === "CUSTOMIZED" && !customData) {
+      router.push(
+        `/custom-service?companyId=${data.companyId}&modelId=${data.modelId}`
+      );
       return;
     }
 
     setLoading(true);
 
     try {
-      const razorpayLoaded = await loadRazorpayScript();
-      if (!razorpayLoaded) {
-        alert("Razorpay failed to load");
-        return;
-      }
-
-      // 1️⃣ Create booking
-      const bookingRes = await API.post(
+      // ---------------- Create Booking ----------------
+      await API.post(
         "/api/bookings",
         {
           bikeCompanyId: Number(data.companyId),
           bikeModelId: Number(data.modelId),
           serviceType: data.serviceType,
           appointmentDate: data.appointmentDate,
-          timeSlot: data.timeSlot, 
-        
           fullAddress: data.fullAddress,
           city: "Pune",
           landmark: data.landmark,
           notes: data.notes,
-          customizedService: customData || null,
+          customizedService: customData,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      const booking = bookingRes.data;
+      setPopup({ type: "success" });
 
-      // 2️⃣ Create Razorpay order
-      const orderRes = await API.post(
-        "/api/payments/create-order",
-        {
-          bookingId: booking.id,
-          amount: customData ? customData.totalPrice : 99,
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      const order = orderRes.data;
-
-      // 3️⃣ Open Razorpay
-      new window.Razorpay({
-        key: "rzp_test_RUUsLf5ulwr2cW",
-        amount: order.amount,
-        currency: "INR",
-        name: "Bike Service",
-        description: "Service Payment",
-        order_id: order.id,
-        handler: async (response) => {
-          await API.post(
-            "/api/payments/verify",
-            {
-              bookingId: booking.id,
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-            },
-            { headers: { Authorization: `Bearer ${token}` } }
-          );
-
-          router.push("/book/booking-success");
-        },
-        modal: { ondismiss: () => alert("Payment cancelled") },
-        theme: { color: "#dc2626" },
-      }).open();
+      setTimeout(() => {
+        setPopup(null);
+        router.push("/book/booking-success");
+      }, 2000);
     } catch (err) {
-      console.error(err);
-      alert("Booking failed");
+      console.error(err.response?.data || err);
+      setPopup({ type: "error" });
+
+      setTimeout(() => {
+        setPopup(null);
+      }, 2000);
     } finally {
       setLoading(false);
     }
   };
 
-  /* ---------------- Render ---------------- */
+  // ---------------- Helpers ----------------
+  const getSelectedServices = () => {
+    if (!customData) return [];
+    const map = {
+      wash: "Bike Wash",
+      oilChange: "Oil Change",
+      chainLube: "Chain Lube",
+      engineTuneUp: "Engine Tune-Up",
+      breakCheck: "Brake Check",
+      fullbodyPolishing: "Full Body Polishing",
+      generalInspection: "General Inspection",
+    };
+    return Object.keys(map).filter((k) => customData[k]);
+  };
+
   return (
-    <div className="max-w-2xl mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-6">Book a Bike Service</h1>
+    <div className="w-full max-w-3xl mx-auto px-4 py-6">
+      <h1 className="text-3xl font-bold mb-6 text-center">
+        Book a Bike Service
+      </h1>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        {/* Company */}
-        <select
-          {...register("companyId", { required: true })}
-          className="border p-2 w-full rounded"
-        >
-          <option value="">Select Company</option>
-          {companies.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+      {/* -------- Customized Summary -------- */}
+      {customData && (
+        <div className="bg-blue-50 border p-4 rounded-lg mb-6">
+          <p>
+            <b>Company:</b> {companyName}
+          </p>
+          <p>
+            <b>Model:</b> {modelName}
+          </p>
+          <p>
+            <b>CC:</b> {customData.cc}
+          </p>
 
-        {/* Model */}
-        <select
-          {...register("modelId", { required: true })}
-          disabled={!selectedCompany}
-          className="border p-2 w-full rounded"
-        >
-          <option value="">Select Model</option>
-          {models.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.modelName}
-            </option>
-          ))}
-        </select>
+          <ul className="list-disc ml-5 mt-2">
+            {getSelectedServices().map((s) => (
+              <li key={s}>{s}</li>
+            ))}
+          </ul>
 
-        {/* Service */}
-        <select
-          {...register("serviceType", { required: true })}
-          className="border p-2 w-full rounded"
-        >
-          <option value="">Select Service</option>
-          <option value="PLAN_UPTO_100CC">Up to 100cc</option>
-          <option value="PLAN_100_TO_160CC">100cc - 160cc</option>
-          <option value="PLAN_ABOVE_180CC">Above 180cc</option>
-          <option value="PICK_AND_DROP">Pick and Drop</option>
-          <option value="CUSTOMIZED">Customized</option>
-        </select>
+          <p className="mt-2 font-bold text-green-700">
+            Total: ₹{customData.totalPrice}
+          </p>
+        </div>
+      )}
 
-        {/* Date */}
-        <input
-          type="date"
-          {...register("appointmentDate", { required: true })}
-          min={today}
-          className="border p-2 w-full rounded"
-        />
+      {/* -------- Popup -------- */}
+      <AnimatePresence>
+        {popup && (
+          <motion.div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="bg-white rounded-xl p-6 w-80 text-center">
+              {popup.type === "success" ? (
+                <AiOutlineCheckCircle className="text-green-600 text-5xl mx-auto" />
+              ) : (
+                <AiOutlineCloseCircle className="text-red-600 text-5xl mx-auto" />
+              )}
 
-        {/* Time Slot */}
-        <select
-          {...register("timeSlot", { required: true })}
-          className="border p-2 w-full rounded"
-        >
-          <option value="">Select Time Slot</option>
-          {TIME_SLOTS.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </select>
+              <p className="mt-4 font-semibold">
+                {popup.type === "success"
+                  ? "Booking created successfully!"
+                  : "Unable to place booking. Please try again."}
+              </p>
 
-        {/* Address */}
-        <textarea
-          {...register("fullAddress", { required: true })}
-          placeholder="Full Address"
-          className="border p-2 w-full rounded"
-        />
-        <input
-          {...register("landmark")}
-          placeholder="Landmark"
-          className="border p-2 w-full rounded"
-        />
-        <textarea
-          {...register("notes")}
-          placeholder="Notes"
-          className="border p-2 w-full rounded"
-        />
+              <button
+                onClick={() => setPopup(null)}
+                className="mt-4 px-6 py-2 bg-blue-600 text-white rounded font-semibold"
+              >
+                OK
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-        <button
-          disabled={loading}
-          className="bg-red-600 text-white py-2 rounded w-full"
-        >
-          {loading ? "Processing..." : "Pay & Book"}
-        </button>
-      </form>
+      {/* -------- Form -------- */}
+      <fieldset disabled={loading} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)}>
+          {/* Company */}
+          <select
+            {...register("companyId", { required: "Company is required" })}
+            className="border p-3 rounded w-full"
+          >
+            <option value="">Select Company</option>
+            {companies.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          {errors.companyId && (
+            <p className="text-red-600">{errors.companyId.message}</p>
+          )}
+
+          {/* Model */}
+          <select
+            {...register("modelId", { required: "Model is required" })}
+            disabled={!selectedCompany}
+            className="border p-3 rounded w-full"
+          >
+            <option value="">Select Model</option>
+            {models.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.modelName}
+              </option>
+            ))}
+          </select>
+          {errors.modelId && (
+            <p className="text-red-600">{errors.modelId.message}</p>
+          )}
+
+          {/* Service Type */}
+          <select
+            {...register("serviceType", { required: "Service type is required" })}
+            className="border p-3 rounded w-full"
+          >
+            <option value="">Select Service</option>
+            <option value="PICK_AND_DROP">Pick And Drop</option>
+            <option value="PLAN_UPTO_100CC">Up to 100cc</option>
+            <option value="PLAN_100_TO_160CC">100cc - 160cc</option>
+            <option value="PLAN_ABOVE_180CC">Above 180cc</option>
+            <option value="CUSTOMIZED">Customized</option>
+          </select>
+          {errors.serviceType && (
+            <p className="text-red-600">{errors.serviceType.message}</p>
+          )}
+
+          {/* Date */}
+          <input
+            type="date"
+            {...register("appointmentDate", { required: "Date is required" })}
+            min={today}
+            className="border p-3 rounded w-full"
+          />
+          {errors.appointmentDate && (
+            <p className="text-red-600">{errors.appointmentDate.message}</p>
+          )}
+
+          {/* Address */}
+          <textarea
+            {...register("fullAddress", { required: "Address is required" })}
+            placeholder="Full Address"
+            className="border p-3 rounded w-full"
+          />
+          {errors.fullAddress && (
+            <p className="text-red-600">{errors.fullAddress.message}</p>
+          )}
+
+          <input
+            {...register("landmark")}
+            placeholder="Landmark"
+            className="border p-3 rounded w-full"
+          />
+
+          <textarea
+            {...register("notes")}
+            placeholder="Notes (optional)"
+            className="border p-3 rounded w-full"
+          />
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="bg-blue-600 text-white py-3 rounded w-full font-semibold"
+          >
+            {loading ? "Booking..." : "Book Now"}
+          </button>
+        </form>
+      </fieldset>
     </div>
   );
 }
