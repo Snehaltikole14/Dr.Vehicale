@@ -25,14 +25,14 @@ export default function BookingPage() {
   const selectedServiceType = watch("serviceType");
   const today = new Date().toISOString().split("T")[0];
 
-  // ---------------- Load companies ----------------
+  /* ---------------- Load companies ---------------- */
   useEffect(() => {
     API.get("/api/bikes/companies")
       .then((res) => setCompanies(res.data))
       .catch(console.error);
   }, []);
 
-  // ---------------- Load models based on company ----------------
+  /* ---------------- Load models ---------------- */
   useEffect(() => {
     if (!selectedCompany) {
       setModels([]);
@@ -45,7 +45,7 @@ export default function BookingPage() {
       .catch(console.error);
   }, [selectedCompany, setValue]);
 
-  // ---------------- Load custom service from URL ----------------
+  /* ---------------- Load custom service ---------------- */
   useEffect(() => {
     if (initialized.current) return;
 
@@ -74,7 +74,7 @@ export default function BookingPage() {
     }
   }, [selectedServiceType]);
 
-  // ---------------- Razorpay loader ----------------
+  /* ---------------- Razorpay loader ---------------- */
   const loadRazorpayScript = () =>
     new Promise((resolve) => {
       if (document.getElementById("razorpay-script")) return resolve(true);
@@ -87,7 +87,7 @@ export default function BookingPage() {
       document.body.appendChild(script);
     });
 
-  // ---------------- Submit handler ----------------
+  /* ---------------- Submit ---------------- */
   const onSubmit = async (data) => {
     const token = localStorage.getItem("token");
     if (!token) return router.push("/login");
@@ -101,68 +101,70 @@ export default function BookingPage() {
         return;
       }
 
-      // 1️⃣ Create Razorpay Order
+      // ✅ AMOUNT IN PAISE
+      const amountRupees = customData?.totalPrice || 99;
+      const amountPaise = amountRupees * 100;
+
+      // ⚠️ TEMP bookingId (replace with real draft booking id if available)
+      const bookingId = 1;
+
+      /* 1️⃣ Create Razorpay Order */
       const orderRes = await API.post(
         "/api/payments/create-order",
-        { amount: customData?.totalPrice || 99 }, // default fallback
+        {
+          bookingId,
+          amount: amountPaise,
+        },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       const order = orderRes.data;
 
-      // 2️⃣ Open Razorpay Checkout
-      new window.Razorpay({
+      /* 2️⃣ Open Razorpay */
+      const razorpay = new window.Razorpay({
         key: "rzp_test_RUUsLf5ulwr2cW",
         amount: order.amount,
         currency: "INR",
         order_id: order.id,
         name: "Bike Service",
         description: "Service Payment",
+
         handler: async (response) => {
           try {
-            // 3️⃣ Verify payment + Save booking
+            /* 3️⃣ Verify payment */
             await API.post(
-              "/api/payments/verify-and-book",
+              "/api/payments/verify",
               {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
-                bookingData: {
-                  bikeCompanyId: Number(data.companyId),
-                  bikeModelId: Number(data.modelId),
-                  serviceType: data.serviceType,
-                  appointmentDate: data.appointmentDate,
-                  timeSlot: data.timeSlot,
-                  fullAddress: data.fullAddress,
-                  city: "Pune",
-                  landmark: data.landmark,
-                  notes: data.notes,
-                  customizedService: customData || null,
-                },
               },
               { headers: { Authorization: `Bearer ${token}` } }
             );
 
             router.push("/book/booking-success");
           } catch (err) {
-            console.error(err);
-            alert("Payment verification or booking failed");
+            console.error("VERIFY ERROR:", err.response?.data || err);
+            alert("Payment verification failed");
           }
         },
+
         modal: {
           ondismiss: () => alert("Payment cancelled"),
         },
         theme: { color: "#dc2626" },
-      }).open();
+      });
+
+      razorpay.open();
     } catch (err) {
-      console.error(err);
-      alert("Payment initiation failed");
+      console.error("PAYMENT ERROR:", err.response?.data || err);
+      alert("Payment failed");
     } finally {
       setLoading(false);
     }
   };
 
-  // ---------------- Render form ----------------
+  /* ---------------- Render ---------------- */
   return (
     <div className="max-w-2xl mx-auto p-6">
       <h1 className="text-3xl font-bold mb-6">Book a Bike Service</h1>
