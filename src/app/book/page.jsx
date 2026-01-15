@@ -78,6 +78,7 @@ export default function BookingPage() {
   const loadRazorpayScript = () =>
     new Promise((resolve) => {
       if (document.getElementById("razorpay-script")) return resolve(true);
+
       const script = document.createElement("script");
       script.id = "razorpay-script";
       script.src = "https://checkout.razorpay.com/v1/checkout.js";
@@ -89,62 +90,55 @@ export default function BookingPage() {
   /* ---------------- Submit (PAYMENT FIRST) ---------------- */
   const onSubmit = async (data) => {
     const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-      return;
-    }
+    if (!token) return router.push("/login");
 
     setLoading(true);
 
     try {
-      // 1️⃣ Load Razorpay
       const loaded = await loadRazorpayScript();
       if (!loaded) {
         alert("Razorpay SDK failed to load");
         return;
       }
 
-      // 2️⃣ Create Razorpay Order (NO BOOKING)
+      // ✅ Amount in rupees → backend converts to paise
+      const amount = customData?.totalPrice || 99;
+
+      /* 1️⃣ Create Razorpay Order (NO bookingId) */
       const orderRes = await API.post(
         "/api/payments/create-order",
-        {
-          amount: customData ? customData.totalPrice : 99,
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        { amount },
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
       const order = orderRes.data;
 
-      // 3️⃣ Open Razorpay
-      new window.Razorpay({
+      /* 2️⃣ Open Razorpay */
+      const razorpay = new window.Razorpay({
         key: "rzp_test_RUUsLf5ulwr2cW",
         amount: order.amount,
-        currency: order.currency,
+        currency: "INR",
         order_id: order.id,
         name: "Bike Service",
         description: "Service Payment",
 
         handler: async (response) => {
           try {
-            // 4️⃣ Verify payment (backend creates booking)
+            /* 3️⃣ Verify payment → backend creates booking */
             await API.post(
               "/api/payments/verify",
               {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
+                bookingData: data, // 🔥 send booking form data here
               },
-              {
-                headers: { Authorization: `Bearer ${token}` },
-              }
+              { headers: { Authorization: `Bearer ${token}` } }
             );
 
-            // 5️⃣ Success
             router.push("/book/booking-success");
           } catch (err) {
-            console.error(err);
+            console.error("VERIFY ERROR:", err.response?.data || err);
             alert("Payment verification failed");
           }
         },
@@ -153,9 +147,11 @@ export default function BookingPage() {
           ondismiss: () => alert("Payment cancelled"),
         },
         theme: { color: "#dc2626" },
-      }).open();
+      });
+
+      razorpay.open();
     } catch (err) {
-      console.error(err);
+      console.error("PAYMENT ERROR:", err.response?.data || err);
       alert("Payment failed");
     } finally {
       setLoading(false);
@@ -171,23 +167,14 @@ export default function BookingPage() {
         <select {...register("companyId")} required className="border p-2 w-full">
           <option value="">Select Company</option>
           {companies.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
+            <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>
 
-        <select
-          {...register("modelId")}
-          required
-          disabled={!selectedCompany}
-          className="border p-2 w-full"
-        >
+        <select {...register("modelId")} required className="border p-2 w-full">
           <option value="">Select Model</option>
           {models.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.modelName}
-            </option>
+            <option key={m.id} value={m.id}>{m.modelName}</option>
           ))}
         </select>
 
@@ -200,44 +187,18 @@ export default function BookingPage() {
           <option value="CUSTOMIZED">Customized</option>
         </select>
 
-        <input
-          type="date"
-          min={today}
-          {...register("appointmentDate")}
-          required
-          className="border p-2 w-full"
-        />
-
-        <select {...register("timeSlot")} required className="border p-2 w-full">
-          <option value="">Select Time Slot</option>
+        <input type="date" min={today} {...register("appointmentDate")} required />
+        <select {...register("timeSlot")} required>
           {TIME_SLOTS.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
+            <option key={s.value} value={s.value}>{s.label}</option>
           ))}
         </select>
 
-        <textarea
-          {...register("fullAddress")}
-          placeholder="Full Address"
-          required
-          className="border p-2 w-full"
-        />
-        <input
-          {...register("landmark")}
-          placeholder="Landmark"
-          className="border p-2 w-full"
-        />
-        <textarea
-          {...register("notes")}
-          placeholder="Notes"
-          className="border p-2 w-full"
-        />
+        <textarea {...register("fullAddress")} placeholder="Address" required />
+        <input {...register("landmark")} placeholder="Landmark" />
+        <textarea {...register("notes")} placeholder="Notes" />
 
-        <button
-          disabled={loading}
-          className="bg-red-600 text-white py-2 w-full"
-        >
+        <button disabled={loading} className="bg-red-600 text-white py-2 w-full">
           {loading ? "Processing..." : "Pay & Book"}
         </button>
       </form>
