@@ -25,14 +25,14 @@ export default function BookingPage() {
   const selectedServiceType = watch("serviceType");
   const today = new Date().toISOString().split("T")[0];
 
-  /* ---------------- Load companies ---------------- */
+  // ---------------- Load companies ----------------
   useEffect(() => {
     API.get("/api/bikes/companies")
       .then((res) => setCompanies(res.data))
       .catch(console.error);
   }, []);
 
-  /* ---------------- Load models ---------------- */
+  // ---------------- Load models based on company ----------------
   useEffect(() => {
     if (!selectedCompany) {
       setModels([]);
@@ -45,7 +45,7 @@ export default function BookingPage() {
       .catch(console.error);
   }, [selectedCompany, setValue]);
 
-  /* ---------------- Load custom service ---------------- */
+  // ---------------- Load custom service from URL ----------------
   useEffect(() => {
     if (initialized.current) return;
 
@@ -74,10 +74,11 @@ export default function BookingPage() {
     }
   }, [selectedServiceType]);
 
-  /* ---------------- Razorpay loader ---------------- */
+  // ---------------- Razorpay loader ----------------
   const loadRazorpayScript = () =>
     new Promise((resolve) => {
       if (document.getElementById("razorpay-script")) return resolve(true);
+
       const script = document.createElement("script");
       script.id = "razorpay-script";
       script.src = "https://checkout.razorpay.com/v1/checkout.js";
@@ -86,7 +87,7 @@ export default function BookingPage() {
       document.body.appendChild(script);
     });
 
-  /* ---------------- Submit ---------------- */
+  // ---------------- Submit handler ----------------
   const onSubmit = async (data) => {
     const token = localStorage.getItem("token");
     if (!token) return router.push("/login");
@@ -100,18 +101,16 @@ export default function BookingPage() {
         return;
       }
 
-      /* 1️⃣ Create Razorpay Order ONLY */
+      // 1️⃣ Create Razorpay Order
       const orderRes = await API.post(
         "/api/payments/create-order",
-        {
-          amount: customData ? customData.totalPrice : 99,
-        },
+        { amount: customData?.totalPrice || 99 }, // default fallback
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       const order = orderRes.data;
 
-      /* 2️⃣ Open Razorpay */
+      // 2️⃣ Open Razorpay Checkout
       new window.Razorpay({
         key: "rzp_test_RUUsLf5ulwr2cW",
         amount: order.amount,
@@ -119,35 +118,37 @@ export default function BookingPage() {
         order_id: order.id,
         name: "Bike Service",
         description: "Service Payment",
-
         handler: async (response) => {
-          /* 3️⃣ Verify payment + Save booking */
-          await API.post(
-            "/api/payments/verify-and-book",
-            {
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-
-              bookingData: {
-                bikeCompanyId: Number(data.companyId),
-                bikeModelId: Number(data.modelId),
-                serviceType: data.serviceType,
-                appointmentDate: data.appointmentDate,
-                timeSlot: data.timeSlot,
-                fullAddress: data.fullAddress,
-                city: "Pune",
-                landmark: data.landmark,
-                notes: data.notes,
-                customizedService: customData || null,
+          try {
+            // 3️⃣ Verify payment + Save booking
+            await API.post(
+              "/api/payments/verify-and-book",
+              {
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                bookingData: {
+                  bikeCompanyId: Number(data.companyId),
+                  bikeModelId: Number(data.modelId),
+                  serviceType: data.serviceType,
+                  appointmentDate: data.appointmentDate,
+                  timeSlot: data.timeSlot,
+                  fullAddress: data.fullAddress,
+                  city: "Pune",
+                  landmark: data.landmark,
+                  notes: data.notes,
+                  customizedService: customData || null,
+                },
               },
-            },
-            { headers: { Authorization: `Bearer ${token}` } }
-          );
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
 
-          router.push("/book/booking-success");
+            router.push("/book/booking-success");
+          } catch (err) {
+            console.error(err);
+            alert("Payment verification or booking failed");
+          }
         },
-
         modal: {
           ondismiss: () => alert("Payment cancelled"),
         },
@@ -155,13 +156,13 @@ export default function BookingPage() {
       }).open();
     } catch (err) {
       console.error(err);
-      alert("Payment failed");
+      alert("Payment initiation failed");
     } finally {
       setLoading(false);
     }
   };
 
-  /* ---------------- Render ---------------- */
+  // ---------------- Render form ----------------
   return (
     <div className="max-w-2xl mx-auto p-6">
       <h1 className="text-3xl font-bold mb-6">Book a Bike Service</h1>
