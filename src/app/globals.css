@@ -45,3 +45,7 @@ body {
   height: 400px;
   width: 100%;
 }
+.input {
+  @apply w-full rounded-lg border border-gray-300 p-2 focus:outline-none focus:ring-2 focus:ring-red-500;
+}
+
