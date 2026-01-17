@@ -43,10 +43,9 @@ export default function BookingPage() {
   }, [selectedCompany]);
 
   /* ================= Razorpay Loader ================= */
-  const loadRazorpayScript = () => {
-    return new Promise(resolve => {
+  const loadRazorpayScript = () =>
+    new Promise(resolve => {
       if (document.getElementById("razorpay-script")) return resolve(true);
-
       const script = document.createElement("script");
       script.id = "razorpay-script";
       script.src = "https://checkout.razorpay.com/v1/checkout.js";
@@ -54,7 +53,6 @@ export default function BookingPage() {
       script.onerror = () => resolve(false);
       document.body.appendChild(script);
     });
-  };
 
   /* ================= Submit ================= */
   const onSubmit = async (formData) => {
@@ -68,24 +66,34 @@ export default function BookingPage() {
         return;
       }
 
+      /* 1️⃣ CREATE BOOKING (UNPAID) */
+      const bookingRes = await API.post(
+        "/api/bookings",
+        formData,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      const bookingId = bookingRes.data.id;
+
+      /* 2️⃣ LOAD RAZORPAY */
       const razorpayLoaded = await loadRazorpayScript();
       if (!razorpayLoaded) {
         setErrorMsg("Payment service unavailable");
         return;
       }
 
-      /* Create Order */
+      /* 3️⃣ CREATE PAYMENT ORDER */
       const orderRes = await API.post(
         "/api/payments/create-order",
-        { amount: 99 },
+        { bookingId, amount: 99 },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       const order = orderRes.data;
 
-      /* Open Razorpay */
+      /* 4️⃣ OPEN RAZORPAY */
       const razorpay = new window.Razorpay({
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY,
+        key: "rzp_test_RUUsLf5ulwr2cW",
         order_id: order.id,
         amount: order.amount,
         currency: "INR",
@@ -99,7 +107,6 @@ export default function BookingPage() {
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
-              bookingData: formData,
             },
             { headers: { Authorization: `Bearer ${token}` } }
           );
@@ -118,7 +125,9 @@ export default function BookingPage() {
 
     } catch (err) {
       console.error(err);
-      setErrorMsg("Something went wrong. Please try again.");
+      setErrorMsg(
+        err.response?.data?.message || "Something went wrong"
+      );
     } finally {
       setLoading(false);
     }
@@ -128,18 +137,15 @@ export default function BookingPage() {
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
       <div className="max-w-2xl mx-auto bg-white shadow-lg rounded-xl p-6">
-        <h1 className="text-2xl font-bold text-gray-800 mb-6">
-          Book a Bike Service
-        </h1>
+        <h1 className="text-2xl font-bold mb-6">Book a Bike Service</h1>
 
         {errorMsg && (
-          <div className="mb-4 rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+          <div className="mb-4 bg-red-50 border border-red-200 p-3 text-sm text-red-700">
             {errorMsg}
           </div>
         )}
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-
           <select {...register("companyId")} required className="input">
             <option value="">Select Company</option>
             {companies.map(c => (
@@ -157,20 +163,13 @@ export default function BookingPage() {
           <select {...register("serviceType")} required className="input">
             <option value="">Select Service</option>
             <option value="PLAN_UPTO_100CC">Up to 100cc</option>
-            <option value="PLAN_100_TO_160CC">100cc – 160cc</option>
+            <option value="PLAN_100_TO_160CC">100–160cc</option>
             <option value="PLAN_ABOVE_180CC">Above 180cc</option>
             <option value="PICK_AND_DROP">Pick & Drop</option>
           </select>
 
           <div className="grid grid-cols-2 gap-4">
-            <input
-              type="date"
-              min={today}
-              {...register("appointmentDate")}
-              required
-              className="input"
-            />
-
+            <input type="date" min={today} {...register("appointmentDate")} required className="input" />
             <select {...register("timeSlot")} required className="input">
               {TIME_SLOTS.map(s => (
                 <option key={s.value} value={s.value}>{s.label}</option>
@@ -180,11 +179,11 @@ export default function BookingPage() {
 
           <textarea {...register("fullAddress")} placeholder="Full Address" required className="input h-24" />
           <input {...register("landmark")} placeholder="Landmark" className="input" />
-          <textarea {...register("notes")} placeholder="Additional Notes" className="input h-20" />
+          <textarea {...register("notes")} placeholder="Notes" className="input h-20" />
 
           <button
             disabled={loading}
-            className="w-full rounded-lg bg-red-600 py-3 text-white font-semibold hover:bg-red-700 transition disabled:opacity-50"
+            className="w-full bg-red-600 py-3 text-white rounded-lg font-semibold disabled:opacity-50"
           >
             {loading ? "Processing Payment..." : "Pay ₹99 & Book"}
           </button>
