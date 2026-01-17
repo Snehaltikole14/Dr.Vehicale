@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { API } from "@/utils/api";
@@ -12,9 +12,8 @@ const TIME_SLOTS = [
 ];
 
 export default function BookingPage() {
-  const { register, handleSubmit, watch, setValue } = useForm();
+  const { register, handleSubmit, watch } = useForm();
   const router = useRouter();
-  const initialized = useRef(false);
 
   const [companies, setCompanies] = useState([]);
   const [models, setModels] = useState([]);
@@ -24,14 +23,14 @@ export default function BookingPage() {
   const selectedCompany = watch("companyId");
   const today = new Date().toISOString().split("T")[0];
 
-  /* ---------------- Load companies ---------------- */
+  /* ================= Load Companies ================= */
   useEffect(() => {
     API.get("/api/bikes/companies")
-      .then((res) => setCompanies(res.data))
+      .then(res => setCompanies(res.data))
       .catch(() => setErrorMsg("Failed to load companies"));
   }, []);
 
-  /* ---------------- Load models ---------------- */
+  /* ================= Load Models ================= */
   useEffect(() => {
     if (!selectedCompany) {
       setModels([]);
@@ -39,13 +38,13 @@ export default function BookingPage() {
     }
 
     API.get(`/api/bikes/companies/${selectedCompany}/models`)
-      .then((res) => setModels(res.data))
+      .then(res => setModels(res.data))
       .catch(() => setErrorMsg("Failed to load models"));
   }, [selectedCompany]);
 
-  /* ---------------- Razorpay loader ---------------- */
-  const loadRazorpayScript = () =>
-    new Promise((resolve) => {
+  /* ================= Razorpay Loader ================= */
+  const loadRazorpayScript = () => {
+    return new Promise(resolve => {
       if (document.getElementById("razorpay-script")) return resolve(true);
 
       const script = document.createElement("script");
@@ -55,27 +54,27 @@ export default function BookingPage() {
       script.onerror = () => resolve(false);
       document.body.appendChild(script);
     });
+  };
 
-  /* ---------------- Submit ---------------- */
-  const onSubmit = async (data) => {
+  /* ================= Submit ================= */
+  const onSubmit = async (formData) => {
     setErrorMsg("");
-    const token = localStorage.getItem("token");
-
-    if (!token) {
-      router.push("/login");
-      return;
-    }
-
     setLoading(true);
 
     try {
-      const razorpayLoaded = await loadRazorpayScript();
-      if (!razorpayLoaded) {
-        setErrorMsg("Payment service unavailable. Try again.");
+      const token = localStorage.getItem("token");
+      if (!token) {
+        router.push("/login");
         return;
       }
 
-      /* 1️⃣ Create order */
+      const razorpayLoaded = await loadRazorpayScript();
+      if (!razorpayLoaded) {
+        setErrorMsg("Payment service unavailable");
+        return;
+      }
+
+      /* Create Order */
       const orderRes = await API.post(
         "/api/payments/create-order",
         { amount: 99 },
@@ -84,111 +83,113 @@ export default function BookingPage() {
 
       const order = orderRes.data;
 
-      /* 2️⃣ Open Razorpay */
+      /* Open Razorpay */
       const razorpay = new window.Razorpay({
-        key: "rzp_test_RUUsLf5ulwr2cW",
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY,
         order_id: order.id,
         amount: order.amount,
         currency: "INR",
-        name: "Bike Service",
-        description: "Service Payment",
+        name: "Dr VehicleCare",
+        description: "Bike Service Payment",
 
         handler: async (response) => {
-          try {
-            /* 3️⃣ Verify payment + create booking */
-            await API.post(
-              "/api/payments/verify",
-              {
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                bookingData: data,
-              },
-              { headers: { Authorization: `Bearer ${token}` } }
-            );
+          await API.post(
+            "/api/payments/verify",
+            {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              bookingData: formData,
+            },
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
 
-            router.push("/book/booking-success");
-          } catch (err) {
-            console.error(err);
-            setErrorMsg(
-              err.response?.data?.message ||
-              "Payment succeeded but booking failed. Contact support."
-            );
-          }
+          router.push("/book/booking-success");
         },
 
         modal: {
-          ondismiss: () => {
-            setErrorMsg("Payment cancelled by user");
-          },
+          ondismiss: () => setErrorMsg("Payment cancelled"),
         },
+
         theme: { color: "#dc2626" },
       });
 
       razorpay.open();
+
     } catch (err) {
       console.error(err);
-      setErrorMsg(
-        err.response?.data?.message ||
-        "Server error. Please try again later."
-      );
+      setErrorMsg("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  /* ---------------- UI ---------------- */
+  /* ================= UI ================= */
   return (
-    <div className="max-w-2xl mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-6">Book a Bike Service</h1>
+    <div className="min-h-screen bg-gray-50 py-10 px-4">
+      <div className="max-w-2xl mx-auto bg-white shadow-lg rounded-xl p-6">
+        <h1 className="text-2xl font-bold text-gray-800 mb-6">
+          Book a Bike Service
+        </h1>
 
-      {errorMsg && (
-        <div className="bg-red-100 text-red-700 p-3 rounded mb-4">
-          {errorMsg}
-        </div>
-      )}
+        {errorMsg && (
+          <div className="mb-4 rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+            {errorMsg}
+          </div>
+        )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <select {...register("companyId")} required className="border p-2 w-full">
-          <option value="">Select Company</option>
-          {companies.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
 
-        <select {...register("modelId")} required className="border p-2 w-full">
-          <option value="">Select Model</option>
-          {models.map((m) => (
-            <option key={m.id} value={m.id}>{m.modelName}</option>
-          ))}
-        </select>
+          <select {...register("companyId")} required className="input">
+            <option value="">Select Company</option>
+            {companies.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
 
-        <select {...register("serviceType")} required className="border p-2 w-full">
-          <option value="">Select Service</option>
-          <option value="PLAN_UPTO_100CC">Up to 100cc</option>
-          <option value="PLAN_100_TO_160CC">100cc - 160cc</option>
-          <option value="PLAN_ABOVE_180CC">Above 180cc</option>
-          <option value="PICK_AND_DROP">Pick & Drop</option>
-        </select>
+          <select {...register("modelId")} required className="input">
+            <option value="">Select Model</option>
+            {models.map(m => (
+              <option key={m.id} value={m.id}>{m.modelName}</option>
+            ))}
+          </select>
 
-        <input type="date" min={today} {...register("appointmentDate")} required />
-        <select {...register("timeSlot")} required>
-          {TIME_SLOTS.map((s) => (
-            <option key={s.value} value={s.value}>{s.label}</option>
-          ))}
-        </select>
+          <select {...register("serviceType")} required className="input">
+            <option value="">Select Service</option>
+            <option value="PLAN_UPTO_100CC">Up to 100cc</option>
+            <option value="PLAN_100_TO_160CC">100cc – 160cc</option>
+            <option value="PLAN_ABOVE_180CC">Above 180cc</option>
+            <option value="PICK_AND_DROP">Pick & Drop</option>
+          </select>
 
-        <textarea {...register("fullAddress")} placeholder="Address" required />
-        <input {...register("landmark")} placeholder="Landmark" />
-        <textarea {...register("notes")} placeholder="Notes" />
+          <div className="grid grid-cols-2 gap-4">
+            <input
+              type="date"
+              min={today}
+              {...register("appointmentDate")}
+              required
+              className="input"
+            />
 
-        <button
-          disabled={loading}
-          className="bg-red-600 text-white py-2 w-full rounded disabled:opacity-50"
-        >
-          {loading ? "Processing Payment..." : "Pay & Book"}
-        </button>
-      </form>
+            <select {...register("timeSlot")} required className="input">
+              {TIME_SLOTS.map(s => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <textarea {...register("fullAddress")} placeholder="Full Address" required className="input h-24" />
+          <input {...register("landmark")} placeholder="Landmark" className="input" />
+          <textarea {...register("notes")} placeholder="Additional Notes" className="input h-20" />
+
+          <button
+            disabled={loading}
+            className="w-full rounded-lg bg-red-600 py-3 text-white font-semibold hover:bg-red-700 transition disabled:opacity-50"
+          >
+            {loading ? "Processing Payment..." : "Pay ₹99 & Book"}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
