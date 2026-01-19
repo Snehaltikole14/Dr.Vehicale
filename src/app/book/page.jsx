@@ -42,19 +42,19 @@ setValue("modelId", "");
 return;
 }
 
-```
+
 API.get(`/api/bikes/companies/${selectedCompany}/models`)
   .then(res => setModels(res.data))
   .catch(console.error);
-```
+
 
 }, [selectedCompany, setValue]);
 
-/* ================= Load custom service after return ================= */
+/* ================= Load custom service after returning ================= */
 useEffect(() => {
 if (initialized.current) return;
 
-```
+
 const params = new URLSearchParams(window.location.search);
 const customServiceId = params.get("customServiceId");
 
@@ -63,15 +63,16 @@ if (customServiceId) {
 
   API.get(`/api/customized/${customServiceId}`)
     .then(res => {
-      setCustomData(res.data);
-      setValue("companyId", res.data.bikeCompany);
-      setValue("modelId", res.data.bikeModel);
+      const data = res.data;
+      setCustomData(data);
+      setValue("companyId", data.bikeCompany);
+      setValue("modelId", data.bikeModel);
     })
     .catch(console.error);
 }
 
 initialized.current = true;
-```
+
 
 }, [setValue]);
 
@@ -82,7 +83,7 @@ setCustomData(null);
 }
 }, [selectedServiceType]);
 
-/* ================= Razorpay Loader ================= */
+/* ================= Razorpay loader ================= */
 const loadRazorpayScript = () =>
 new Promise(resolve => {
 if (document.getElementById("razorpay-script")) return resolve(true);
@@ -94,7 +95,7 @@ script.onerror = () => resolve(false);
 document.body.appendChild(script);
 });
 
-/* ================= Submit ================= */
+/* ================= Submit booking ================= */
 const onSubmit = async (data) => {
 const token = localStorage.getItem("token");
 if (!token) {
@@ -102,8 +103,8 @@ router.push("/login");
 return;
 }
 
-```
-// ✅ Redirect ONLY on submit
+
+// 👉 Redirect ONLY on Pay & Book
 if (data.serviceType === "CUSTOMIZED" && !customData) {
   router.push(
     `/custom-service?companyId=${data.companyId}&modelId=${data.modelId}`
@@ -116,7 +117,7 @@ setLoading(true);
 try {
   const razorLoaded = await loadRazorpayScript();
   if (!razorLoaded) {
-    alert("Razorpay failed to load");
+    alert("Razorpay SDK failed to load");
     return;
   }
 
@@ -133,14 +134,14 @@ try {
       city: "Pune",
       landmark: data.landmark,
       notes: data.notes,
-      customizedService: customData || null,
+      customizedService: customData,
     },
     { headers: { Authorization: `Bearer ${token}` } }
   );
 
   const booking = bookingRes.data;
 
-  // 2️⃣ Create Razorpay order
+  // 2️⃣ Create payment order
   const orderRes = await API.post(
     "/api/payments/create-order",
     {
@@ -169,7 +170,8 @@ try {
       router.push("/book/booking-success");
     },
     modal: {
-      ondismiss: () => alert("Payment cancelled. Booking saved as unpaid."),
+      ondismiss: () =>
+        alert("Payment cancelled. Booking saved as unpaid."),
     },
     theme: { color: "#2563eb" },
   });
@@ -177,11 +179,10 @@ try {
   rzp.open();
 } catch (err) {
   console.error(err);
-  alert("Booking failed");
+  alert("Booking created but payment failed.");
 } finally {
   setLoading(false);
 }
-```
 
 };
 
@@ -189,20 +190,21 @@ try {
 return ( <div className="max-w-2xl mx-auto p-6"> <h1 className="text-3xl font-bold mb-6 text-center">
 Book a Bike Service </h1>
 
-```
   {customData && (
     <div className="border p-4 rounded mb-4 bg-blue-50">
       <h3 className="font-semibold mb-2">Customized Service</h3>
       <ul className="text-sm space-y-1">
         {customData.wash && <li>✔ Bike Wash</li>}
         {customData.oilChange && <li>✔ Oil Change</li>}
-        {customData.chainLube && <li>✔ Chain Lube</li>}
+        {customData.chainLube && <li>✔ Chain Lubrication</li>}
         {customData.engineTuneUp && <li>✔ Engine Tune-up</li>}
         {customData.breakCheck && <li>✔ Brake Check</li>}
         {customData.fullbodyPolishing && <li>✔ Full Body Polishing</li>}
         {customData.generalInspection && <li>✔ General Inspection</li>}
       </ul>
-      <p className="mt-2 font-bold">Total: ₹{customData.totalPrice}</p>
+      <p className="mt-2 font-bold">
+        Total: ₹{customData.totalPrice}
+      </p>
     </div>
   )}
 
@@ -247,7 +249,6 @@ Book a Bike Service </h1>
     </button>
   </form>
 </div>
-```
 
 );
 }
