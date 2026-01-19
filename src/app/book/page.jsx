@@ -50,7 +50,7 @@ API.get(`/api/bikes/companies/${selectedCompany}/models`)
 
 }, [selectedCompany, setValue]);
 
-/* ================= Load custom service after returning ================= */
+/* ================= Load customized service ================= */
 useEffect(() => {
 if (initialized.current) return;
 
@@ -76,7 +76,7 @@ initialized.current = true;
 
 }, [setValue]);
 
-/* ================= Clear custom data if service changes ================= */
+/* ================= Clear custom data ================= */
 useEffect(() => {
 if (selectedServiceType !== "CUSTOMIZED") {
 setCustomData(null);
@@ -87,13 +87,15 @@ setCustomData(null);
 const loadRazorpayScript = () =>
 new Promise(resolve => {
 if (document.getElementById("razorpay-script")) return resolve(true);
-const script = document.createElement("script");
-script.id = "razorpay-script";
-script.src = "[https://checkout.razorpay.com/v1/checkout.js](https://checkout.razorpay.com/v1/checkout.js)";
-script.onload = () => resolve(true);
-script.onerror = () => resolve(false);
-document.body.appendChild(script);
+
+  const script = document.createElement("script");
+  script.id = "razorpay-script";
+  script.src = "https://checkout.razorpay.com/v1/checkout.js";
+  script.onload = () => resolve(true);
+  script.onerror = () => resolve(false);
+  document.body.appendChild(script);
 });
+
 
 /* ================= Submit booking ================= */
 const onSubmit = async (data) => {
@@ -104,11 +106,9 @@ return;
 }
 
 
-// 👉 Redirect ONLY on Pay & Book
+// Redirect to custom service builder
 if (data.serviceType === "CUSTOMIZED" && !customData) {
-  router.push(
-    `/custom-service?companyId=${data.companyId}&modelId=${data.modelId}`
-  );
+  router.push(`/custom-service?companyId=${data.companyId}&modelId=${data.modelId}`);
   return;
 }
 
@@ -141,7 +141,7 @@ try {
 
   const booking = bookingRes.data;
 
-  // 2️⃣ Create payment order
+  // 2️⃣ Create Razorpay order
   const orderRes = await API.post(
     "/api/payments/create-order",
     {
@@ -156,39 +156,56 @@ try {
   // 3️⃣ Open Razorpay
   const rzp = new window.Razorpay({
     key: "rzp_test_RUUsLf5ulwr2cW",
-    order_id: order.id,
+    order_id: order.orderId,
     amount: order.amount,
     currency: "INR",
     name: "Bike Service",
     description: "Service Payment",
+
     handler: async (response) => {
-      await API.post(
-        "/api/payments/verify",
-        response,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      router.push("/book/booking-success");
+      try {
+        await API.post(
+          "/api/payments/verify",
+          {
+            bookingId: booking.id,
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature,
+          },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        router.push("/book/booking-success");
+      } catch (err) {
+        console.error(err);
+        alert("Payment verification failed.");
+      }
     },
+
     modal: {
-      ondismiss: () =>
-        alert("Payment cancelled. Booking saved as unpaid."),
+      ondismiss: () => {
+        alert("Payment cancelled. Booking saved as unpaid.");
+      },
     },
+
     theme: { color: "#2563eb" },
   });
 
   rzp.open();
+
 } catch (err) {
   console.error(err);
-  alert("Booking created but payment failed.");
+  alert(err?.response?.data?.message || "Something went wrong. Please try again.");
 } finally {
   setLoading(false);
 }
 
+
 };
 
 /* ================= UI ================= */
-return ( <div className="max-w-2xl mx-auto p-6"> <h1 className="text-3xl font-bold mb-6 text-center">
-Book a Bike Service </h1>
+return ( <div className="max-w-2xl mx-auto p-6"> <h1 className="text-3xl font-bold mb-6 text-center">Book a Bike Service</h1>
+
 
   {customData && (
     <div className="border p-4 rounded mb-4 bg-blue-50">
@@ -202,9 +219,7 @@ Book a Bike Service </h1>
         {customData.fullbodyPolishing && <li>✔ Full Body Polishing</li>}
         {customData.generalInspection && <li>✔ General Inspection</li>}
       </ul>
-      <p className="mt-2 font-bold">
-        Total: ₹{customData.totalPrice}
-      </p>
+      <p className="mt-2 font-bold">Total: ₹{customData.totalPrice}</p>
     </div>
   )}
 
@@ -249,6 +264,7 @@ Book a Bike Service </h1>
     </button>
   </form>
 </div>
+
 
 );
 }
