@@ -32,6 +32,13 @@ export default function BookingPage() {
   const selectedServiceType = watch("serviceType");
   const today = new Date().toISOString().split("T")[0];
 
+  /* ---------------- Redirect to custom page ---------------- */
+  useEffect(() => {
+    if (selectedServiceType === "CUSTOMIZED") {
+      router.push("/custom-service"); // 👈 your custom service page
+    }
+  }, [selectedServiceType, router]);
+
   /* ---------------- Load companies ---------------- */
   useEffect(() => {
     API.get("/api/bikes/companies")
@@ -52,7 +59,7 @@ export default function BookingPage() {
       .catch(console.error);
   }, [selectedCompany, setValue]);
 
-  /* ---------------- Load custom service ---------------- */
+  /* ---------------- Load custom service from query ---------------- */
   useEffect(() => {
     if (initialized.current) return;
 
@@ -198,21 +205,35 @@ export default function BookingPage() {
       <h1 className="text-3xl font-bold mb-6">Book a Bike Service</h1>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <select {...register("companyId", { required: true })} className="border p-2 w-full rounded">
+        <select
+          {...register("companyId", { required: true })}
+          className="border p-2 w-full rounded"
+        >
           <option value="">Select Company</option>
           {companies.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
           ))}
         </select>
 
-        <select {...register("modelId", { required: true })} disabled={!selectedCompany} className="border p-2 w-full rounded">
+        <select
+          {...register("modelId", { required: true })}
+          disabled={!selectedCompany}
+          className="border p-2 w-full rounded"
+        >
           <option value="">Select Model</option>
           {models.map((m) => (
-            <option key={m.id} value={m.id}>{m.modelName}</option>
+            <option key={m.id} value={m.id}>
+              {m.modelName}
+            </option>
           ))}
         </select>
 
-        <select {...register("serviceType", { required: true })} className="border p-2 w-full rounded">
+        <select
+          {...register("serviceType", { required: true })}
+          className="border p-2 w-full rounded"
+        >
           <option value="">Select Service</option>
           <option value="PLAN_UPTO_100CC">Up to 100cc</option>
           <option value="PLAN_100_TO_160CC">100cc - 160cc</option>
@@ -221,20 +242,47 @@ export default function BookingPage() {
           <option value="CUSTOMIZED">Customized</option>
         </select>
 
-        <input type="date" {...register("appointmentDate", { required: true })} min={today} className="border p-2 w-full rounded" />
+        <input
+          type="date"
+          {...register("appointmentDate", { required: true })}
+          min={today}
+          className="border p-2 w-full rounded"
+        />
 
-        <select {...register("timeSlot", { required: true })} className="border p-2 w-full rounded">
+        <select
+          {...register("timeSlot", { required: true })}
+          className="border p-2 w-full rounded"
+        >
           <option value="">Select Time Slot</option>
           {TIME_SLOTS.map((s) => (
-            <option key={s.value} value={s.value}>{s.label}</option>
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
           ))}
         </select>
 
-        <textarea {...register("fullAddress", { required: true })} placeholder="Full Address" className="border p-2 w-full rounded" />
-        <input {...register("landmark")} placeholder="Landmark" className="border p-2 w-full rounded" />
-        <textarea {...register("notes")} placeholder="Notes" className="border p-2 w-full rounded" />
+        <textarea
+          {...register("fullAddress", { required: true })}
+          placeholder="Full Address"
+          className="border p-2 w-full rounded"
+        />
 
-        <button disabled={loading} className="bg-blue-600 text-white py-2 rounded w-full">
+        <input
+          {...register("landmark")}
+          placeholder="Landmark"
+          className="border p-2 w-full rounded"
+        />
+
+        <textarea
+          {...register("notes")}
+          placeholder="Notes"
+          className="border p-2 w-full rounded"
+        />
+
+        <button
+          disabled={loading}
+          className="bg-blue-600 text-white py-2 rounded w-full"
+        >
           {loading ? "Processing..." : "Pay & Book"}
         </button>
       </form>
