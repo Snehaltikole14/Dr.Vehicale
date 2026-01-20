@@ -12,20 +12,14 @@ const TIME_SLOTS = [
 ];
 
 export default function BookingPage() {
-  const {
-    register,
-    handleSubmit,
-    watch,
-    setValue,
-    formState: { errors },
-  } = useForm({ mode: "onChange" });
+  const { register, handleSubmit, watch, setValue } = useForm();
+  const router = useRouter();
 
   const [companies, setCompanies] = useState([]);
   const [models, setModels] = useState([]);
   const [customData, setCustomData] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const router = useRouter();
   const initialized = useRef(false);
 
   const selectedCompany = watch("companyId");
@@ -64,10 +58,9 @@ export default function BookingPage() {
 
       API.get(`/api/customized/${customServiceId}`)
         .then((res) => {
-          const data = res.data;
-          setCustomData(data);
-          setValue("companyId", data.bikeCompany);
-          setValue("modelId", data.bikeModel);
+          setCustomData(res.data);
+          setValue("companyId", res.data.bikeCompany);
+          setValue("modelId", res.data.bikeModel);
         })
         .catch(console.error);
     }
@@ -81,41 +74,28 @@ export default function BookingPage() {
     }
   }, [selectedServiceType]);
 
-  /* ---------------- Razorpay loader ---------------- */
- const loadRazorpayScript = () =>
-  new Promise((resolve) => {
-    if (window.Razorpay) {
-      resolve(true);
-      return;
-    }
+  /* ---------------- Razorpay Loader ---------------- */
+  const loadRazorpay = () =>
+    new Promise((resolve) => {
+      if (window.Razorpay) return resolve(true);
 
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.async = true;
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
 
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-
-    document.body.appendChild(script);
-  });
-
-
-  /* ---------------- Submit booking ---------------- */
+  /* ---------------- Submit ---------------- */
   const onSubmit = async (data) => {
     const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-      return;
-    }
+    if (!token) return router.push("/login");
 
     setLoading(true);
 
     try {
-      const razorpayLoaded = await loadRazorpayScript();
-      if (!razorpayLoaded) {
-        alert("Razorpay failed to load");
-        return;
-      }
+      const loaded = await loadRazorpay();
+      if (!loaded) throw new Error("Razorpay SDK failed");
 
       // 1️⃣ Create booking
       const bookingRes = await API.post(
@@ -125,8 +105,7 @@ export default function BookingPage() {
           bikeModelId: Number(data.modelId),
           serviceType: data.serviceType,
           appointmentDate: data.appointmentDate,
-          timeSlot: data.timeSlot, 
-        
+          timeSlot: data.timeSlot,
           fullAddress: data.fullAddress,
           city: "Pune",
           landmark: data.landmark,
@@ -138,26 +117,40 @@ export default function BookingPage() {
 
       const booking = bookingRes.data;
 
-      // 2️⃣ Create Razorpay order
+      // 2️⃣ Create Razorpay order (amount in paise)
+      const amountInPaise = (customData?.totalPrice || 99) * 100;
+
       const orderRes = await API.post(
         "/api/payments/create-order",
         {
           bookingId: booking.id,
-          amount: customData ? customData.totalPrice : 99,
+          amount: amountInPaise,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       const order = orderRes.data;
+      console.log("RAZORPAY ORDER:", order);
+
+      if (!order?.id || !order?.amount) {
+        throw new Error("Invalid Razorpay order");
+      }
 
       // 3️⃣ Open Razorpay
-      new window.Razorpay({
-        key: "rzp_test_RUUsLf5ulwr2cW",
+      const rzp = new window.Razorpay({
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY,
+        order_id: order.id,
         amount: order.amount,
         currency: "INR",
         name: "Bike Service",
         description: "Service Payment",
-        order_id: order.id,
+
+        prefill: {
+          name: "Bike Service User",
+          email: "user@example.com",
+          contact: "9999999999",
+        },
+
         handler: async (response) => {
           await API.post(
             "/api/payments/verify",
@@ -172,12 +165,19 @@ export default function BookingPage() {
 
           router.push("/book/booking-success");
         },
-        modal: { ondismiss: () => alert("Payment cancelled") },
-        theme: { color: "#dc2626" },
-      }).open();
+
+        modal: {
+          ondismiss: () => alert("Payment cancelled"),
+        },
+
+        theme: { color: "#2563eb" },
+      });
+
+      window.__rzp = rzp; // debug
+      rzp.open();
     } catch (err) {
       console.error(err);
-      alert("Booking failed");
+      alert("Payment failed");
     } finally {
       setLoading(false);
     }
@@ -189,38 +189,21 @@ export default function BookingPage() {
       <h1 className="text-3xl font-bold mb-6">Book a Bike Service</h1>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        {/* Company */}
-        <select
-          {...register("companyId", { required: true })}
-          className="border p-2 w-full rounded"
-        >
+        <select {...register("companyId", { required: true })} className="border p-2 w-full">
           <option value="">Select Company</option>
           {companies.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
+            <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>
 
-        {/* Model */}
-        <select
-          {...register("modelId", { required: true })}
-          disabled={!selectedCompany}
-          className="border p-2 w-full rounded"
-        >
+        <select {...register("modelId", { required: true })} disabled={!selectedCompany} className="border p-2 w-full">
           <option value="">Select Model</option>
           {models.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.modelName}
-            </option>
+            <option key={m.id} value={m.id}>{m.modelName}</option>
           ))}
         </select>
 
-        {/* Service */}
-        <select
-          {...register("serviceType", { required: true })}
-          className="border p-2 w-full rounded"
-        >
+        <select {...register("serviceType", { required: true })} className="border p-2 w-full">
           <option value="">Select Service</option>
           <option value="PLAN_UPTO_100CC">Up to 100cc</option>
           <option value="PLAN_100_TO_160CC">100cc - 160cc</option>
@@ -229,52 +212,23 @@ export default function BookingPage() {
           <option value="CUSTOMIZED">Customized</option>
         </select>
 
-        {/* Date */}
-        <input
-          type="date"
-          {...register("appointmentDate", { required: true })}
-          min={today}
-          className="border p-2 w-full rounded"
-        />
+        <input type="date" {...register("appointmentDate", { required: true })} min={today} className="border p-2 w-full" />
 
-        {/* Time Slot */}
-        <select
-          {...register("timeSlot", { required: true })}
-          className="border p-2 w-full rounded"
-        >
+        <select {...register("timeSlot", { required: true })} className="border p-2 w-full">
           <option value="">Select Time Slot</option>
           {TIME_SLOTS.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
+            <option key={s.value} value={s.value}>{s.label}</option>
           ))}
         </select>
 
-        {/* Address */}
-        <textarea
-          {...register("fullAddress", { required: true })}
-          placeholder="Full Address"
-          className="border p-2 w-full rounded"
-        />
-        <input
-          {...register("landmark")}
-          placeholder="Landmark"
-          className="border p-2 w-full rounded"
-        />
-        <textarea
-          {...register("notes")}
-          placeholder="Notes"
-          className="border p-2 w-full rounded"
-        />
+        <textarea {...register("fullAddress", { required: true })} placeholder="Full Address" className="border p-2 w-full" />
+        <input {...register("landmark")} placeholder="Landmark" className="border p-2 w-full" />
+        <textarea {...register("notes")} placeholder="Notes" className="border p-2 w-full" />
 
-        <button
-          disabled={loading}
-          className="bg-blue-600 text-white py-2 rounded w-full"
-        >
+        <button disabled={loading} className="bg-blue-600 text-white py-2 w-full rounded">
           {loading ? "Processing..." : "Pay & Book"}
         </button>
       </form>
     </div>
   );
 }
-
