@@ -138,7 +138,7 @@ export default function BookingPage() {
 
       // 3️⃣ Open Razorpay
       const rzp = new window.Razorpay({
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY,
+        key: "rzp_test_RUUsLf5ulwr2cW",
         order_id: order.id,
         amount: order.amount,
         currency: "INR",
@@ -232,3 +232,4 @@ export default function BookingPage() {
     </div>
   );
 }
+
