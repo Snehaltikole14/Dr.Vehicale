@@ -46,7 +46,7 @@ export default function BookingPage() {
       .catch(console.error);
   }, [selectedCompany, setValue]);
 
-  /* ---------------- Load custom service ---------------- */
+  /* ---------------- Load customized service ---------------- */
   useEffect(() => {
     if (initialized.current) return;
 
@@ -81,6 +81,7 @@ export default function BookingPage() {
 
       const script = document.createElement("script");
       script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.async = true;
       script.onload = () => resolve(true);
       script.onerror = () => resolve(false);
       document.body.appendChild(script);
@@ -89,13 +90,19 @@ export default function BookingPage() {
   /* ---------------- Submit ---------------- */
   const onSubmit = async (data) => {
     const token = localStorage.getItem("token");
-    if (!token) return router.push("/login");
+    if (!token) {
+      router.push("/login");
+      return;
+    }
 
     setLoading(true);
 
     try {
-      const loaded = await loadRazorpay();
-      if (!loaded) throw new Error("Razorpay SDK failed");
+      const razorLoaded = await loadRazorpay();
+      if (!razorLoaded) {
+        alert("Razorpay SDK failed to load");
+        return;
+      }
 
       // 1️⃣ Create booking
       const bookingRes = await API.post(
@@ -117,39 +124,33 @@ export default function BookingPage() {
 
       const booking = bookingRes.data;
 
-      // 2️⃣ Create Razorpay order (amount in paise)
-      const amountInPaise = (customData?.totalPrice || 99) * 100;
+      // 2️⃣ Amount MUST be in paise
+      const amountPaise = (customData?.totalPrice || 99) * 100;
 
+      // 3️⃣ Create Razorpay order (backend)
       const orderRes = await API.post(
         "/api/payments/create-order",
         {
           bookingId: booking.id,
-          amount: amountInPaise,
+          amount: amountPaise,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       const order = orderRes.data;
-      console.log("RAZORPAY ORDER:", order);
 
-      if (!order?.id || !order?.amount) {
+      if (!order?.id) {
         throw new Error("Invalid Razorpay order");
       }
 
-      // 3️⃣ Open Razorpay
+      // 4️⃣ Open Razorpay Checkout
       const rzp = new window.Razorpay({
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY,
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY, // 🔥 LIVE KEY IN PROD
         order_id: order.id,
         amount: order.amount,
         currency: "INR",
         name: "Bike Service",
         description: "Service Payment",
-
-        prefill: {
-          name: "Bike Service User",
-          email: "user@example.com",
-          contact: "9999999999",
-        },
 
         handler: async (response) => {
           await API.post(
@@ -173,7 +174,6 @@ export default function BookingPage() {
         theme: { color: "#2563eb" },
       });
 
-      window.__rzp = rzp; // debug
       rzp.open();
     } catch (err) {
       console.error(err);
@@ -183,7 +183,7 @@ export default function BookingPage() {
     }
   };
 
-  /* ---------------- Render ---------------- */
+  /* ---------------- UI ---------------- */
   return (
     <div className="max-w-2xl mx-auto p-6">
       <h1 className="text-3xl font-bold mb-6">Book a Bike Service</h1>
@@ -208,7 +208,6 @@ export default function BookingPage() {
           <option value="PLAN_UPTO_100CC">Up to 100cc</option>
           <option value="PLAN_100_TO_160CC">100cc - 160cc</option>
           <option value="PLAN_ABOVE_180CC">Above 180cc</option>
-          <option value="PICK_AND_DROP">Pick and Drop</option>
           <option value="CUSTOMIZED">Customized</option>
         </select>
 
@@ -232,5 +231,3 @@ export default function BookingPage() {
     </div>
   );
 }
-
-
