@@ -35,14 +35,14 @@ export default function BookingPage() {
     }
   }, [router]);
 
-  /* ================= Load companies ================= */
+  /* ---------------- Load companies ---------------- */
   useEffect(() => {
     API.get("/api/bikes/companies")
       .then(res => setCompanies(res.data))
       .catch(console.error);
   }, []);
 
-  /* ================= Load models ================= */
+  /* ---------------- Load models ---------------- */
   useEffect(() => {
     if (!selectedCompany) {
       setModels([]);
@@ -53,10 +53,9 @@ export default function BookingPage() {
     API.get(`/api/bikes/companies/${selectedCompany}/models`)
       .then(res => setModels(res.data))
       .catch(console.error);
-
   }, [selectedCompany, setValue]);
 
-  /* ================= Load customized service ================= */
+  /* ---------------- Load customized service ---------------- */
   useEffect(() => {
     if (initialized.current) return;
 
@@ -79,14 +78,14 @@ export default function BookingPage() {
     initialized.current = true;
   }, [setValue]);
 
-  /* ================= Clear custom data ================= */
+  /* ---------------- Clear custom data ---------------- */
   useEffect(() => {
     if (selectedServiceType !== "CUSTOMIZED") {
       setCustomData(null);
     }
   }, [selectedServiceType]);
 
-  /* ================= Razorpay loader ================= */
+  /* ---------------- Razorpay loader ---------------- */
   const loadRazorpayScript = () =>
     new Promise(resolve => {
       if (document.getElementById("razorpay-script")) return resolve(true);
@@ -99,9 +98,8 @@ export default function BookingPage() {
       document.body.appendChild(script);
     });
 
-  /* ================= Submit booking ================= */
+  /* ---------------- Submit booking ---------------- */
   const onSubmit = async (data) => {
-    // Redirect to custom service builder
     if (data.serviceType === "CUSTOMIZED" && !customData) {
       router.push(`/custom-service?companyId=${data.companyId}&modelId=${data.modelId}`);
       return;
@@ -127,7 +125,7 @@ export default function BookingPage() {
         city: "Pune",
         landmark: data.landmark,
         notes: data.notes,
-        customizedService: customData,
+        customizedService: customData || null,
       });
 
       const booking = bookingRes.data;
@@ -141,7 +139,7 @@ export default function BookingPage() {
       const order = orderRes.data;
 
       // 3️⃣ Open Razorpay
-      const rzp = new window.Razorpay({
+      new window.Razorpay({
         key: "rzp_test_RUUsLf5ulwr2cW",
         order_id: order.orderId,
         amount: order.amount,
@@ -161,32 +159,28 @@ export default function BookingPage() {
         },
 
         modal: {
-          ondismiss: () => {
-            alert("Payment cancelled. Booking saved as unpaid.");
-          },
+          ondismiss: () => alert("Payment cancelled"),
         },
 
         theme: { color: "#2563eb" },
-      });
-
-      rzp.open();
+      }).open();
 
     } catch (err) {
       console.error(err);
-      alert(err?.response?.data?.message || "Something went wrong.");
+      alert(err?.response?.data?.message || "Booking failed");
     } finally {
       setLoading(false);
     }
   };
 
-  /* ================= UI ================= */
+  /* ---------------- UI ---------------- */
   return (
     <div className="max-w-2xl mx-auto p-6">
       <h1 className="text-3xl font-bold mb-6 text-center">Book a Bike Service</h1>
 
       {customData && (
         <div className="border p-4 rounded mb-4 bg-blue-50">
-          <h3 className="font-semibold mb-2">Customized Service</h3>
+          <h3 className="font-semibold">Customized Service</h3>
           <p className="font-bold">Total: ₹{customData.totalPrice}</p>
         </div>
       )}
