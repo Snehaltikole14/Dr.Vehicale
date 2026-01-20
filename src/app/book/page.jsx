@@ -26,14 +26,14 @@ export default function BookingPage() {
   const selectedServiceType = watch("serviceType");
   const today = new Date().toISOString().split("T")[0];
 
-  /* ---------------- Load companies ---------------- */
+  /* ---------------- Load Companies ---------------- */
   useEffect(() => {
     API.get("/api/bikes/companies")
       .then((res) => setCompanies(res.data))
       .catch(console.error);
   }, []);
 
-  /* ---------------- Load models ---------------- */
+  /* ---------------- Load Models ---------------- */
   useEffect(() => {
     if (!selectedCompany) {
       setModels([]);
@@ -46,44 +46,25 @@ export default function BookingPage() {
       .catch(console.error);
   }, [selectedCompany, setValue]);
 
-  /* ---------------- Load customized service ---------------- */
-  useEffect(() => {
-    if (initialized.current) return;
-
-    const params = new URLSearchParams(window.location.search);
-    const customServiceId = params.get("customServiceId");
-
-    if (customServiceId) {
-      setValue("serviceType", "CUSTOMIZED");
-
-      API.get(`/api/customized/${customServiceId}`)
-        .then((res) => {
-          setCustomData(res.data);
-          setValue("companyId", res.data.bikeCompany);
-          setValue("modelId", res.data.bikeModel);
-        })
-        .catch(console.error);
-    }
-
-    initialized.current = true;
-  }, [setValue]);
-
-  useEffect(() => {
-    if (selectedServiceType !== "CUSTOMIZED") {
-      setCustomData(null);
-    }
-  }, [selectedServiceType]);
-
   /* ---------------- Razorpay Loader ---------------- */
   const loadRazorpay = () =>
-    new Promise((resolve) => {
-      if (window.Razorpay) return resolve(true);
+    new Promise((resolve, reject) => {
+      if (typeof window !== "undefined" && window.Razorpay) {
+        resolve(true);
+        return;
+      }
 
       const script = document.createElement("script");
       script.src = "https://checkout.razorpay.com/v1/checkout.js";
       script.async = true;
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
+
+      script.onload = () => {
+        if (window.Razorpay) resolve(true);
+        else reject(new Error("Razorpay SDK not available"));
+      };
+
+      script.onerror = () => reject(new Error("Razorpay load failed"));
+
       document.body.appendChild(script);
     });
 
@@ -98,11 +79,13 @@ export default function BookingPage() {
     setLoading(true);
 
     try {
-      const razorLoaded = await loadRazorpay();
-      if (!razorLoaded) {
-        alert("Razorpay SDK failed to load");
-        return;
+      console.log("RAZORPAY KEY:", process.env.NEXT_PUBLIC_RAZORPAY_KEY);
+
+      if (!process.env.NEXT_PUBLIC_RAZORPAY_KEY) {
+        throw new Error("Razorpay key missing");
       }
+
+      await loadRazorpay();
 
       // 1️⃣ Create booking
       const bookingRes = await API.post(
@@ -124,15 +107,14 @@ export default function BookingPage() {
 
       const booking = bookingRes.data;
 
-      // 2️⃣ Amount MUST be in paise
-      const amountPaise = (customData?.totalPrice || 99) * 100;
+      // 2️⃣ Create Razorpay Order (amount in paise)
+      const amount = (customData?.totalPrice || 99) * 100;
 
-      // 3️⃣ Create Razorpay order (backend)
       const orderRes = await API.post(
         "/api/payments/create-order",
         {
           bookingId: booking.id,
-          amount: amountPaise,
+          amount,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -143,9 +125,9 @@ export default function BookingPage() {
         throw new Error("Invalid Razorpay order");
       }
 
-      // 4️⃣ Open Razorpay Checkout
+      // 3️⃣ Open Razorpay
       const rzp = new window.Razorpay({
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY, // 🔥 LIVE KEY IN PROD
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY,
         order_id: order.id,
         amount: order.amount,
         currency: "INR",
@@ -175,15 +157,15 @@ export default function BookingPage() {
       });
 
       rzp.open();
-    } catch (err) {
-      console.error(err);
-      alert("Payment failed");
+    } catch (error) {
+      console.error("PAYMENT ERROR:", error);
+      alert(error.message || "Payment failed");
     } finally {
       setLoading(false);
     }
   };
 
-  /* ---------------- UI ---------------- */
+  /* ---------------- Render ---------------- */
   return (
     <div className="max-w-2xl mx-auto p-6">
       <h1 className="text-3xl font-bold mb-6">Book a Bike Service</h1>
@@ -208,6 +190,7 @@ export default function BookingPage() {
           <option value="PLAN_UPTO_100CC">Up to 100cc</option>
           <option value="PLAN_100_TO_160CC">100cc - 160cc</option>
           <option value="PLAN_ABOVE_180CC">Above 180cc</option>
+          <option value="PICK_AND_DROP">Pick and Drop</option>
           <option value="CUSTOMIZED">Customized</option>
         </select>
 
