@@ -82,17 +82,23 @@ export default function BookingPage() {
   }, [selectedServiceType]);
 
   /* ---------------- Razorpay loader ---------------- */
-  const loadRazorpayScript = () =>
-    new Promise((resolve) => {
-      if (document.getElementById("razorpay-script")) return resolve(true);
+ const loadRazorpayScript = () =>
+  new Promise((resolve) => {
+    if (window.Razorpay) {
+      resolve(true);
+      return;
+    }
 
-      const script = document.createElement("script");
-      script.id = "razorpay-script";
-      script.src = "https://checkout.razorpay.com/v1/checkout.js";
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+
+    document.body.appendChild(script);
+  });
+
 
   /* ---------------- Submit booking ---------------- */
   const onSubmit = async (data) => {
@@ -271,3 +277,4 @@ export default function BookingPage() {
     </div>
   );
 }
+
