@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { API } from "@/utils/api";
@@ -20,10 +20,7 @@ export default function BookingPage() {
   const [customData, setCustomData] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const initialized = useRef(false);
-
   const selectedCompany = watch("companyId");
-  const selectedServiceType = watch("serviceType");
   const today = new Date().toISOString().split("T")[0];
 
   /* ---------------- Load Companies ---------------- */
@@ -60,18 +57,19 @@ export default function BookingPage() {
 
       script.onload = () => {
         if (window.Razorpay) resolve(true);
-        else reject(new Error("Razorpay SDK not available"));
+        else reject(new Error("Razorpay SDK failed"));
       };
 
       script.onerror = () => reject(new Error("Razorpay load failed"));
-
       document.body.appendChild(script);
     });
 
   /* ---------------- Submit ---------------- */
   const onSubmit = async (data) => {
     const token = localStorage.getItem("token");
+
     if (!token) {
+      alert("Login expired. Please login again.");
       router.push("/login");
       return;
     }
@@ -79,15 +77,21 @@ export default function BookingPage() {
     setLoading(true);
 
     try {
-      console.log("RAZORPAY KEY:", process.env.NEXT_PUBLIC_RAZORPAY_KEY);
+      const RAZORPAY_KEY = process.env.NEXT_PUBLIC_RAZORPAY_KEY;
 
-      if (!process.env.NEXT_PUBLIC_RAZORPAY_KEY) {
-        throw new Error("Razorpay key missing");
-      }
+      console.log("TOKEN:", token);
+      console.log("RAZORPAY KEY:", RAZORPAY_KEY);
+
+      if (!RAZORPAY_KEY) throw new Error("Razorpay Key Missing");
 
       await loadRazorpay();
 
-      // 1️⃣ Create booking
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      };
+
+      /* ---------------- Create Booking ---------------- */
       const bookingRes = await API.post(
         "/api/bookings",
         {
@@ -102,12 +106,16 @@ export default function BookingPage() {
           notes: data.notes,
           customizedService: customData || null,
         },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers }
       );
 
       const booking = bookingRes.data;
 
-      // 2️⃣ Create Razorpay Order (amount in paise)
+      if (!booking?.id) {
+        throw new Error("Booking creation failed");
+      }
+
+      /* ---------------- Create Razorpay Order ---------------- */
       const amount = (customData?.totalPrice || 99) * 100;
 
       const orderRes = await API.post(
@@ -116,18 +124,18 @@ export default function BookingPage() {
           bookingId: booking.id,
           amount,
         },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers }
       );
 
       const order = orderRes.data;
 
       if (!order?.id) {
-        throw new Error("Invalid Razorpay order");
+        throw new Error("Razorpay Order Failed");
       }
 
-      // 3️⃣ Open Razorpay
+      /* ---------------- Open Razorpay ---------------- */
       const rzp = new window.Razorpay({
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY,
+        key: RAZORPAY_KEY,
         order_id: order.id,
         amount: order.amount,
         currency: "INR",
@@ -135,18 +143,22 @@ export default function BookingPage() {
         description: "Service Payment",
 
         handler: async (response) => {
-          await API.post(
-            "/api/payments/verify",
-            {
-              bookingId: booking.id,
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-            },
-            { headers: { Authorization: `Bearer ${token}` } }
-          );
+          try {
+            await API.post(
+              "/api/payments/verify",
+              {
+                bookingId: booking.id,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              },
+              { headers }
+            );
 
-          router.push("/book/booking-success");
+            router.push("/book/booking-success");
+          } catch {
+            alert("Payment verification failed");
+          }
         },
 
         modal: {
@@ -159,7 +171,7 @@ export default function BookingPage() {
       rzp.open();
     } catch (error) {
       console.error("PAYMENT ERROR:", error);
-      alert(error.message || "Payment failed");
+      alert(error.response?.data?.message || error.message || "Payment failed");
     } finally {
       setLoading(false);
     }
