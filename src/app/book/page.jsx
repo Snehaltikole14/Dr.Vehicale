@@ -12,13 +12,7 @@ const TIME_SLOTS = [
 ];
 
 export default function BookingPage() {
-  const {
-    register,
-    handleSubmit,
-    watch,
-    setValue,
-    formState: { errors },
-  } = useForm({ mode: "onChange" });
+  const { register, handleSubmit, watch, setValue } = useForm({ mode: "onChange" });
 
   const [companies, setCompanies] = useState([]);
   const [models, setModels] = useState([]);
@@ -52,7 +46,7 @@ export default function BookingPage() {
       .catch(console.error);
   }, [selectedCompany, setValue]);
 
-  /* ---------------- Load custom service ---------------- */
+  /* ---------------- Load customized service ---------------- */
   useEffect(() => {
     if (initialized.current) return;
 
@@ -64,10 +58,9 @@ export default function BookingPage() {
 
       API.get(`/api/customized/${customServiceId}`)
         .then((res) => {
-          const data = res.data;
-          setCustomData(data);
-          setValue("companyId", data.bikeCompany);
-          setValue("modelId", data.bikeModel);
+          setCustomData(res.data);
+          setValue("companyId", res.data.bikeCompany);
+          setValue("modelId", res.data.bikeModel);
         })
         .catch(console.error);
     }
@@ -84,10 +77,9 @@ export default function BookingPage() {
   /* ---------------- Razorpay loader ---------------- */
   const loadRazorpayScript = () =>
     new Promise((resolve) => {
-      if (document.getElementById("razorpay-script")) return resolve(true);
+      if (window.Razorpay) return resolve(true);
 
       const script = document.createElement("script");
-      script.id = "razorpay-script";
       script.src = "https://checkout.razorpay.com/v1/checkout.js";
       script.onload = () => resolve(true);
       script.onerror = () => resolve(false);
@@ -105,13 +97,13 @@ export default function BookingPage() {
     setLoading(true);
 
     try {
-      const razorpayLoaded = await loadRazorpayScript();
-      if (!razorpayLoaded) {
-        alert("Razorpay failed to load");
+      const loaded = await loadRazorpayScript();
+      if (!loaded || !window.Razorpay) {
+        alert("Razorpay SDK blocked");
         return;
       }
 
-      // 1️⃣ Create booking
+      /* 1️⃣ Create booking */
       const bookingRes = await API.post(
         "/api/bookings",
         {
@@ -119,8 +111,7 @@ export default function BookingPage() {
           bikeModelId: Number(data.modelId),
           serviceType: data.serviceType,
           appointmentDate: data.appointmentDate,
-          timeSlot: data.timeSlot, 
-        
+          timeSlot: data.timeSlot,
           fullAddress: data.fullAddress,
           city: "Pune",
           landmark: data.landmark,
@@ -132,26 +123,41 @@ export default function BookingPage() {
 
       const booking = bookingRes.data;
 
-      // 2️⃣ Create Razorpay order
+      /* 2️⃣ Create Razorpay order (PAISE) */
+      const amountInPaise =
+        (customData ? customData.totalPrice : 99) * 100;
+
       const orderRes = await API.post(
         "/api/payments/create-order",
         {
           bookingId: booking.id,
-          amount: customData ? customData.totalPrice : 99,
+          amount: amountInPaise,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       const order = orderRes.data;
 
-      // 3️⃣ Open Razorpay
-      new window.Razorpay({
-        key: "rzp_live_S7C5WPF2wQHogV",
+      if (!order?.id) {
+        alert("Invalid payment order");
+        return;
+      }
+
+      /* 3️⃣ Open Razorpay */
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY,
         amount: order.amount,
         currency: "INR",
-        name: "Bike Service",
-        description: "Service Payment",
+        name: "Dr Vehicle Care",
+        description: "Bike Service Payment",
         order_id: order.id,
+
+        prefill: {
+          name: "Customer",
+          email: "support@drvehiclecare.com",
+          contact: "9999999999",
+        },
+
         handler: async (response) => {
           await API.post(
             "/api/payments/verify",
@@ -166,12 +172,21 @@ export default function BookingPage() {
 
           router.push("/book/booking-success");
         },
-        modal: { ondismiss: () => alert("Payment cancelled") },
-        theme: { color: "#dc2626" },
-      }).open();
+
+        modal: {
+          ondismiss: () => alert("Payment cancelled"),
+        },
+
+        theme: {
+          color: "#dc2626",
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
     } catch (err) {
       console.error(err);
-      alert("Booking failed");
+      alert("Payment failed");
     } finally {
       setLoading(false);
     }
@@ -183,38 +198,21 @@ export default function BookingPage() {
       <h1 className="text-3xl font-bold mb-6">Book a Bike Service</h1>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        {/* Company */}
-        <select
-          {...register("companyId", { required: true })}
-          className="border p-2 w-full rounded"
-        >
+        <select {...register("companyId", { required: true })} className="border p-2 w-full rounded">
           <option value="">Select Company</option>
           {companies.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
+            <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>
 
-        {/* Model */}
-        <select
-          {...register("modelId", { required: true })}
-          disabled={!selectedCompany}
-          className="border p-2 w-full rounded"
-        >
+        <select {...register("modelId", { required: true })} disabled={!selectedCompany} className="border p-2 w-full rounded">
           <option value="">Select Model</option>
           {models.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.modelName}
-            </option>
+            <option key={m.id} value={m.id}>{m.modelName}</option>
           ))}
         </select>
 
-        {/* Service */}
-        <select
-          {...register("serviceType", { required: true })}
-          className="border p-2 w-full rounded"
-        >
+        <select {...register("serviceType", { required: true })} className="border p-2 w-full rounded">
           <option value="">Select Service</option>
           <option value="PLAN_UPTO_100CC">Up to 100cc</option>
           <option value="PLAN_100_TO_160CC">100cc - 160cc</option>
@@ -223,48 +221,20 @@ export default function BookingPage() {
           <option value="CUSTOMIZED">Customized</option>
         </select>
 
-        {/* Date */}
-        <input
-          type="date"
-          {...register("appointmentDate", { required: true })}
-          min={today}
-          className="border p-2 w-full rounded"
-        />
+        <input type="date" min={today} {...register("appointmentDate", { required: true })} className="border p-2 w-full rounded" />
 
-        {/* Time Slot */}
-        <select
-          {...register("timeSlot", { required: true })}
-          className="border p-2 w-full rounded"
-        >
+        <select {...register("timeSlot", { required: true })} className="border p-2 w-full rounded">
           <option value="">Select Time Slot</option>
           {TIME_SLOTS.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
+            <option key={s.value} value={s.value}>{s.label}</option>
           ))}
         </select>
 
-        {/* Address */}
-        <textarea
-          {...register("fullAddress", { required: true })}
-          placeholder="Full Address"
-          className="border p-2 w-full rounded"
-        />
-        <input
-          {...register("landmark")}
-          placeholder="Landmark"
-          className="border p-2 w-full rounded"
-        />
-        <textarea
-          {...register("notes")}
-          placeholder="Notes"
-          className="border p-2 w-full rounded"
-        />
+        <textarea {...register("fullAddress", { required: true })} placeholder="Full Address" className="border p-2 w-full rounded" />
+        <input {...register("landmark")} placeholder="Landmark" className="border p-2 w-full rounded" />
+        <textarea {...register("notes")} placeholder="Notes" className="border p-2 w-full rounded" />
 
-        <button
-          disabled={loading}
-          className="bg-blue-600 text-white py-2 rounded w-full"
-        >
+        <button disabled={loading} className="bg-blue-600 text-white py-2 rounded w-full">
           {loading ? "Processing..." : "Pay & Book"}
         </button>
       </form>
