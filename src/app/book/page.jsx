@@ -18,6 +18,7 @@ export default function BookingPage() {
   const [models, setModels] = useState([]);
   const [customData, setCustomData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [razorpayKey, setRazorpayKey] = useState("");
 
   const router = useRouter();
   const initialized = useRef(false);
@@ -26,14 +27,21 @@ export default function BookingPage() {
   const selectedServiceType = watch("serviceType");
   const today = new Date().toISOString().split("T")[0];
 
-  // Load companies
+  // ================= Load Razorpay Key =================
+  useEffect(() => {
+    API.get("/api/payments/key")
+      .then((res) => setRazorpayKey(res.data.key))
+      .catch((err) => console.error("Razorpay Key Error:", err));
+  }, []);
+
+  // ================= Load companies =================
   useEffect(() => {
     API.get("/api/bikes/companies")
       .then((res) => setCompanies(res.data))
       .catch((err) => console.error("Company error:", err));
   }, []);
 
-  // Load models
+  // ================= Load models =================
   useEffect(() => {
     if (!selectedCompany) {
       setModels([]);
@@ -46,7 +54,7 @@ export default function BookingPage() {
       .catch((err) => console.error("Models error:", err));
   }, [selectedCompany, setValue]);
 
-  // Load customized service
+  // ================= Load customized service =================
   useEffect(() => {
     if (initialized.current) return;
 
@@ -75,7 +83,7 @@ export default function BookingPage() {
     }
   }, [selectedServiceType]);
 
-  // Razorpay loader
+  // ================= Razorpay loader =================
   const loadRazorpayScript = () =>
     new Promise((resolve) => {
       if (document.getElementById("razorpay-script")) return resolve(true);
@@ -83,15 +91,25 @@ export default function BookingPage() {
       const script = document.createElement("script");
       script.id = "razorpay-script";
       script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.async = true;
+
       script.onload = () => resolve(true);
       script.onerror = () => resolve(false);
+
       document.body.appendChild(script);
     });
 
+  // ================= Submit =================
   const onSubmit = async (data) => {
     const token = localStorage.getItem("token");
+
     if (!token) {
       router.push("/login");
+      return;
+    }
+
+    if (!razorpayKey) {
+      alert("Razorpay Key not loaded. Please refresh page.");
       return;
     }
 
@@ -100,11 +118,11 @@ export default function BookingPage() {
     try {
       const razorpayLoaded = await loadRazorpayScript();
       if (!razorpayLoaded) {
-        alert("Razorpay failed to load");
+        alert("Razorpay failed to load. Check internet or adblock.");
         return;
       }
 
-      // 1) Create booking
+      // 1️⃣ Create booking
       const bookingRes = await API.post(
         "/api/bookings",
         {
@@ -124,31 +142,31 @@ export default function BookingPage() {
 
       const booking = bookingRes.data;
 
-      // 2) Amount convert to paise
+      // 2️⃣ Amount in RUPEES (backend converts to paise)
       const amountInRupees = customData ? Number(customData.totalPrice) : 99;
-      const amountInPaise = amountInRupees * 100;
 
-      // 3) Create order
+      // 3️⃣ Create order
       const orderRes = await API.post(
         "/api/payments/create-order",
         {
           bookingId: booking.id,
-          amount: amountInPaise, // ✅ send paise
+          amount: amountInRupees, // ✅ RUPEES
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       const order = orderRes.data;
 
-      // 4) Open Razorpay
+      // 4️⃣ Open Razorpay popup
       const options = {
-        key: "rzp_live_S7C5WPF2wQHogV",
-        amount: order.amount,
+        key: razorpayKey,
+        amount: order.amount, // paise from backend
         currency: "INR",
-        name: "Bike Service",
-        description: "Service Payment",
+        name: "Dr VehicleCare",
+        description: "Bike Service Payment",
         order_id: order.id,
-        handler: async (response) => {
+
+        handler: async function (response) {
           try {
             await API.post(
               "/api/payments/verify",
@@ -162,22 +180,36 @@ export default function BookingPage() {
             );
 
             router.push("/book/booking-success");
-          } catch (verifyErr) {
-            console.error("Verify failed:", verifyErr);
-            alert("Payment verification failed");
+          } catch (err) {
+            console.error("Verify failed:", err);
+            alert("Payment verification failed!");
           }
         },
+
         modal: {
           ondismiss: () => alert("Payment cancelled"),
         },
+
+        prefill: {
+          name: "Customer",
+          email: "customer@email.com",
+          contact: "9999999999",
+        },
+
         theme: { color: "#dc2626" },
       };
 
       const rzp = new window.Razorpay(options);
+
+      rzp.on("payment.failed", function (response) {
+        console.error("Payment failed:", response.error);
+        alert("Payment failed: " + response.error.description);
+      });
+
       rzp.open();
     } catch (err) {
       console.error("Booking/Payment error:", err);
-      alert("Booking failed");
+      alert("Booking failed in production");
     } finally {
       setLoading(false);
     }
