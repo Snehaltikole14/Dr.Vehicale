@@ -112,53 +112,46 @@ export default function BookingPage() {
         return;
       }
 
-      // 1️⃣ Create booking
-      const bookingRes = await API_PRIVATE.post("/api/bookings", {
-        bikeCompanyId: Number(data.companyId),
-        bikeModelId: Number(data.modelId),
-        serviceType: data.serviceType,
-        appointmentDate: data.appointmentDate,
-        timeSlot: data.timeSlot,
-        fullAddress: data.fullAddress,
-        city: "Pune",
-        landmark: data.landmark,
-        notes: data.notes,
-        customizedService: customData || null,
-      });
-
-      const booking = bookingRes.data;
-
-      // 2️⃣ Amount in rupees
+      // 1️⃣ Create Razorpay order on backend (no booking yet)
       const amountInRupees = customData ? Number(customData.totalPrice) : 99;
 
-      // 3️⃣ Create Razorpay order
       const orderRes = await API_PUBLIC.post("/api/payments/create-order", {
-        bookingId: booking.id,
-        amount: amountInRupees, // rupees
+        amount: amountInRupees,
       });
 
       const order = orderRes.data;
 
-      // 4️⃣ Razorpay options
+      // 2️⃣ Razorpay checkout options
       const options = {
         key: "rzp_live_S7C5WPF2wQHogV",
-        amount: order.amount, // paise
+        amount: order.amount,
         currency: order.currency,
         name: "Dr VehicleCare",
         description: "Bike Service Payment",
         order_id: order.id,
         handler: async function (response) {
           try {
-            await API_PRIVATE.post("/api/payments/verify", {
-              bookingId: booking.id,
+            // 3️⃣ Only after successful payment → create booking and verify payment
+            await API_PRIVATE.post("/api/bookings", {
+              bikeCompanyId: Number(data.companyId),
+              bikeModelId: Number(data.modelId),
+              serviceType: data.serviceType,
+              appointmentDate: data.appointmentDate,
+              timeSlot: data.timeSlot,
+              fullAddress: data.fullAddress,
+              city: "Pune",
+              landmark: data.landmark,
+              notes: data.notes,
+              customizedService: customData || null,
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
             });
+
             router.push("/book/booking-success");
           } catch (err) {
-            console.error("Verify failed:", err);
-            alert("Payment verification failed!");
+            console.error("Booking creation/verification failed:", err);
+            alert("Payment succeeded but booking failed. Contact support!");
           }
         },
         modal: { ondismiss: () => alert("Payment cancelled") },
@@ -174,7 +167,7 @@ export default function BookingPage() {
 
       rzp.open();
     } catch (err) {
-      console.error("Booking/Payment error:", err);
+      console.error("Payment error:", err);
       alert("Booking failed");
     } finally {
       setLoading(false);
@@ -250,4 +243,3 @@ export default function BookingPage() {
     </div>
   );
 }
-
