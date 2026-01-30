@@ -151,7 +151,7 @@ export default function BookingPage() {
 
       // 4️⃣ Open Razorpay
       const options = {
-        key: razorpayKey,
+        key:"rzp_live_S7C5WPF2wQHogV",
         amount: order.amount, // paise from backend
         currency: order.currency,
         name: "Dr VehicleCare",
@@ -267,3 +267,4 @@ export default function BookingPage() {
     </div>
   );
 }
+
