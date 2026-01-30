@@ -112,26 +112,27 @@ export default function BookingPage() {
         return;
       }
 
-      // 1️⃣ Create Razorpay order on backend (no booking yet)
+      // Amount in rupees
       const amountInRupees = customData ? Number(customData.totalPrice) : 99;
 
-      const orderRes = await API_PUBLIC.post("/api/payments/create-order", {
+      // ✅ IMPORTANT: create-order must be PRIVATE (token required)
+      const orderRes = await API_PRIVATE.post("/api/payments/create-order", {
         amount: amountInRupees,
       });
 
       const order = orderRes.data;
 
-      // 2️⃣ Razorpay checkout options
       const options = {
         key: "rzp_live_S7C5WPF2wQHogV",
-        amount: order.amount,
+        amount: order.amount, // paise
         currency: order.currency,
         name: "Dr VehicleCare",
         description: "Bike Service Payment",
         order_id: order.id,
+
         handler: async function (response) {
           try {
-            // 3️⃣ Only after successful payment → create booking and verify payment
+            // Create booking only after payment success
             await API_PRIVATE.post("/api/bookings", {
               bikeCompanyId: Number(data.companyId),
               bikeModelId: Number(data.modelId),
@@ -143,6 +144,7 @@ export default function BookingPage() {
               landmark: data.landmark,
               notes: data.notes,
               customizedService: customData || null,
+
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
@@ -150,11 +152,15 @@ export default function BookingPage() {
 
             router.push("/book/booking-success");
           } catch (err) {
-            console.error("Booking creation/verification failed:", err);
-            alert("Payment succeeded but booking failed. Contact support!");
+            console.error("Booking failed after payment:", err);
+            alert("Payment done but booking failed. Please contact support.");
           }
         },
-        modal: { ondismiss: () => alert("Payment cancelled") },
+
+        modal: {
+          ondismiss: () => alert("Payment cancelled"),
+        },
+
         theme: { color: "#dc2626" },
       };
 
@@ -167,8 +173,8 @@ export default function BookingPage() {
 
       rzp.open();
     } catch (err) {
-      console.error("Payment error:", err);
-      alert("Booking failed");
+      console.error("Order create error:", err);
+      alert("Payment initialization failed");
     } finally {
       setLoading(false);
     }
@@ -210,12 +216,7 @@ export default function BookingPage() {
           <option value="CUSTOMIZED">Customized</option>
         </select>
 
-        <input
-          type="date"
-          {...register("appointmentDate", { required: true })}
-          min={today}
-          className="border p-2 w-full rounded"
-        />
+        <input type="date" {...register("appointmentDate", { required: true })} min={today} className="border p-2 w-full rounded" />
 
         <select {...register("timeSlot", { required: true })} className="border p-2 w-full rounded">
           <option value="">Select Time Slot</option>
@@ -226,14 +227,8 @@ export default function BookingPage() {
           ))}
         </select>
 
-        <textarea
-          {...register("fullAddress", { required: true })}
-          placeholder="Full Address"
-          className="border p-2 w-full rounded"
-        />
-
+        <textarea {...register("fullAddress", { required: true })} placeholder="Full Address" className="border p-2 w-full rounded" />
         <input {...register("landmark")} placeholder="Landmark" className="border p-2 w-full rounded" />
-
         <textarea {...register("notes")} placeholder="Notes" className="border p-2 w-full rounded" />
 
         <button disabled={loading} className="bg-blue-600 text-white py-2 rounded w-full">
