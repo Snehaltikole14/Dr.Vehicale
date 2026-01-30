@@ -1,285 +1,31 @@
-"use client";
+// utils/api.js
+import axios from "axios";
 
-import { useEffect, useState, useRef } from "react";
-import { useForm } from "react-hook-form";
-import { useRouter } from "next/navigation";
-import { API } from "@/utils/api";
+const BASE_URL = "https://dr-vehicle-backend.onrender.com";
 
-const TIME_SLOTS = [
-  { value: "MORNING", label: "Morning (9am - 12pm)" },
-  { value: "AFTERNOON", label: "Afternoon (12pm - 4pm)" },
-  { value: "EVENING", label: "Evening (4pm - 8pm)" },
-];
+// ✅ Public API (no Authorization header)
+export const API_PUBLIC = axios.create({
+  baseURL: BASE_URL,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
 
-export default function BookingPage() {
-  const { register, handleSubmit, watch, setValue } = useForm({ mode: "onChange" });
+// ✅ Private API (Authorization required)
+export const API_PRIVATE = axios.create({
+  baseURL: BASE_URL,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
 
-  const [companies, setCompanies] = useState([]);
-  const [models, setModels] = useState([]);
-  const [customData, setCustomData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [razorpayKey, setRazorpayKey] = useState("");
+// Auto add token for private requests only
+API_PRIVATE.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token");
 
-  const router = useRouter();
-  const initialized = useRef(false);
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
 
-  const selectedCompany = watch("companyId");
-  const selectedServiceType = watch("serviceType");
-  const today = new Date().toISOString().split("T")[0];
-
-  // ================= Load Razorpay Key =================
-  useEffect(() => {
-    API.get("/api/payments/key")
-      .then((res) => {
-        console.log("Razorpay key loaded:", res.data);
-        setRazorpayKey(res.data.key);
-      })
-      .catch((err) => console.error("Razorpay Key Error:", err));
-  }, []);
-
-  // ================= Load companies =================
-  useEffect(() => {
-    API.get("/api/bikes/companies")
-      .then((res) => setCompanies(res.data))
-      .catch((err) => console.error("Company error:", err));
-  }, []);
-
-  // ================= Load models =================
-  useEffect(() => {
-    if (!selectedCompany) {
-      setModels([]);
-      setValue("modelId", "");
-      return;
-    }
-
-    API.get(`/api/bikes/companies/${selectedCompany}/models`)
-      .then((res) => setModels(res.data))
-      .catch((err) => console.error("Models error:", err));
-  }, [selectedCompany, setValue]);
-
-  // ================= Load customized service =================
-  useEffect(() => {
-    if (initialized.current) return;
-
-    const params = new URLSearchParams(window.location.search);
-    const customServiceId = params.get("customServiceId");
-
-    if (customServiceId) {
-      setValue("serviceType", "CUSTOMIZED");
-
-      API.get(`/api/customized/${customServiceId}`)
-        .then((res) => {
-          const data = res.data;
-          setCustomData(data);
-          setValue("companyId", data.bikeCompany);
-          setValue("modelId", data.bikeModel);
-        })
-        .catch((err) => console.error("Customized error:", err));
-    }
-
-    initialized.current = true;
-  }, [setValue]);
-
-  useEffect(() => {
-    if (selectedServiceType !== "CUSTOMIZED") {
-      setCustomData(null);
-    }
-  }, [selectedServiceType]);
-
-  // ================= Razorpay loader =================
-  const loadRazorpayScript = () =>
-    new Promise((resolve) => {
-      if (document.getElementById("razorpay-checkout-js")) return resolve(true);
-
-      const script = document.createElement("script");
-      script.id = "razorpay-checkout-js";
-      script.src = "https://checkout.razorpay.com/v1/checkout.js";
-      script.async = true;
-
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-
-      document.body.appendChild(script);
-    });
-
-  // ================= Submit =================
-  const onSubmit = async (data) => {
-    const token = localStorage.getItem("token");
-
-    if (!token) {
-      router.push("/login");
-      return;
-    }
-
-    if (!razorpayKey) {
-      alert("Razorpay Key not loaded. Please refresh page.");
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const razorpayLoaded = await loadRazorpayScript();
-      if (!razorpayLoaded) {
-        alert("Razorpay failed to load. Check internet or adblock.");
-        return;
-      }
-
-      if (!window.Razorpay) {
-        alert("Razorpay not available. Script blocked.");
-        return;
-      }
-
-      // 1️⃣ Create booking (JWT REQUIRED)
-      const bookingRes = await API.post(
-        "/api/bookings",
-        {
-          bikeCompanyId: Number(data.companyId),
-          bikeModelId: Number(data.modelId),
-          serviceType: data.serviceType,
-          appointmentDate: data.appointmentDate,
-          timeSlot: data.timeSlot,
-          fullAddress: data.fullAddress,
-          city: "Pune",
-          landmark: data.landmark,
-          notes: data.notes,
-          customizedService: customData || null,
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      const booking = bookingRes.data;
-      console.log("Booking created:", booking);
-
-      // 2️⃣ Amount in RUPEES
-      const amountInRupees = customData ? Number(customData.totalPrice) : 99;
-
-      // 3️⃣ Create order (NO TOKEN REQUIRED)
-      const orderRes = await API.post("/api/payments/create-order", {
-        bookingId: booking.id,
-        amount: amountInRupees,
-      });
-
-      const order = orderRes.data;
-      console.log("Order created:", order);
-
-      // 4️⃣ Open Razorpay popup
-      const options = {
-        key: razorpayKey,
-        amount: order.amount, // paise
-        currency: order.currency || "INR",
-        name: "Dr VehicleCare",
-        description: "Bike Service Payment",
-        order_id: order.id,
-
-        handler: async function (response) {
-          try {
-            console.log("Razorpay success:", response);
-
-            // 5️⃣ Verify payment (NO TOKEN REQUIRED)
-            await API.post("/api/payments/verify", {
-              bookingId: booking.id.toString(),
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-            });
-
-            router.push("/book/booking-success");
-          } catch (err) {
-            console.error("Verify failed:", err);
-            alert("Payment verification failed!");
-          }
-        },
-
-        modal: {
-          ondismiss: () => alert("Payment cancelled"),
-        },
-
-        theme: { color: "#dc2626" },
-      };
-
-      const rzp = new window.Razorpay(options);
-
-      rzp.on("payment.failed", function (response) {
-        console.error("Payment failed:", response.error);
-        alert("Payment failed: " + response.error.description);
-      });
-
-      rzp.open();
-    } catch (err) {
-      console.error("Booking/Payment error:", err);
-      alert("Booking failed in production");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="max-w-2xl mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-6">Book a Bike Service</h1>
-
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <select {...register("companyId", { required: true })} className="border p-2 w-full rounded">
-          <option value="">Select Company</option>
-          {companies.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-
-        <select
-          {...register("modelId", { required: true })}
-          disabled={!selectedCompany}
-          className="border p-2 w-full rounded"
-        >
-          <option value="">Select Model</option>
-          {models.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.modelName}
-            </option>
-          ))}
-        </select>
-
-        <select {...register("serviceType", { required: true })} className="border p-2 w-full rounded">
-          <option value="">Select Service</option>
-          <option value="PLAN_UPTO_100CC">Up to 100cc</option>
-          <option value="PLAN_100_TO_160CC">100cc - 160cc</option>
-          <option value="PLAN_ABOVE_180CC">Above 180cc</option>
-          <option value="PICK_AND_DROP">Pick and Drop</option>
-          <option value="CUSTOMIZED">Customized</option>
-        </select>
-
-        <input
-          type="date"
-          {...register("appointmentDate", { required: true })}
-          min={today}
-          className="border p-2 w-full rounded"
-        />
-
-        <select {...register("timeSlot", { required: true })} className="border p-2 w-full rounded">
-          <option value="">Select Time Slot</option>
-          {TIME_SLOTS.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </select>
-
-        <textarea
-          {...register("fullAddress", { required: true })}
-          placeholder="Full Address"
-          className="border p-2 w-full rounded"
-        />
-
-        <input {...register("landmark")} placeholder="Landmark" className="border p-2 w-full rounded" />
-
-        <textarea {...register("notes")} placeholder="Notes" className="border p-2 w-full rounded" />
-
-        <button disabled={loading} className="bg-blue-600 text-white py-2 rounded w-full">
-          {loading ? "Processing..." : "Pay & Book"}
-        </button>
-      </form>
-    </div>
-  );
-}
+  return config;
+});
