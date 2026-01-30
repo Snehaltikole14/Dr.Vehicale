@@ -13,7 +13,6 @@ const TIME_SLOTS = [
 
 export default function BookingPage() {
   const { register, handleSubmit, watch, setValue } = useForm({ mode: "onChange" });
-
   const [companies, setCompanies] = useState([]);
   const [models, setModels] = useState([]);
   const [customData, setCustomData] = useState(null);
@@ -27,50 +26,48 @@ export default function BookingPage() {
   const selectedServiceType = watch("serviceType");
   const today = new Date().toISOString().split("T")[0];
 
-  // ================= Razorpay loader =================
+  // ================= Razorpay Script Loader =================
   const loadRazorpayScript = () =>
     new Promise((resolve) => {
       if (document.getElementById("razorpay-script")) return resolve(true);
-
       const script = document.createElement("script");
       script.id = "razorpay-script";
       script.src = "https://checkout.razorpay.com/v1/checkout.js";
       script.async = true;
-
       script.onload = () => resolve(true);
       script.onerror = () => resolve(false);
-
       document.body.appendChild(script);
     });
 
   // ================= Load Razorpay Key =================
   useEffect(() => {
     API_PUBLIC.get("/api/payments/key")
-      .then((res) => setRazorpayKey(res.data.key))
+      .then((res) => {
+        if (res.data?.key) setRazorpayKey(res.data.key);
+      })
       .catch((err) => console.error("Razorpay Key Error:", err));
   }, []);
 
-  // ================= Load companies =================
+  // ================= Load Companies =================
   useEffect(() => {
     API_PUBLIC.get("/api/bikes/companies")
       .then((res) => setCompanies(res.data))
       .catch((err) => console.error("Company error:", err));
   }, []);
 
-  // ================= Load models =================
+  // ================= Load Models =================
   useEffect(() => {
     if (!selectedCompany) {
       setModels([]);
       setValue("modelId", "");
       return;
     }
-
     API_PUBLIC.get(`/api/bikes/companies/${selectedCompany}/models`)
       .then((res) => setModels(res.data))
       .catch((err) => console.error("Models error:", err));
   }, [selectedCompany, setValue]);
 
-  // ================= Load customized service =================
+  // ================= Load Customized Service =================
   useEffect(() => {
     if (initialized.current) return;
 
@@ -79,7 +76,6 @@ export default function BookingPage() {
 
     if (customServiceId) {
       setValue("serviceType", "CUSTOMIZED");
-
       API_PUBLIC.get(`/api/customized/${customServiceId}`)
         .then((res) => {
           const data = res.data;
@@ -94,19 +90,13 @@ export default function BookingPage() {
   }, [setValue]);
 
   useEffect(() => {
-    if (selectedServiceType !== "CUSTOMIZED") {
-      setCustomData(null);
-    }
+    if (selectedServiceType !== "CUSTOMIZED") setCustomData(null);
   }, [selectedServiceType]);
 
-  // ================= Submit =================
+  // ================= Submit Booking =================
   const onSubmit = async (data) => {
     const token = localStorage.getItem("token");
-
-    if (!token) {
-      router.push("/login");
-      return;
-    }
+    if (!token) return router.push("/login");
 
     if (!razorpayKey) {
       alert("Razorpay Key not loaded. Please refresh.");
@@ -122,7 +112,7 @@ export default function BookingPage() {
         return;
       }
 
-      // 1️⃣ Create booking (PRIVATE)
+      // 1️⃣ Create booking
       const bookingRes = await API_PRIVATE.post("/api/bookings", {
         bikeCompanyId: Number(data.companyId),
         bikeModelId: Number(data.modelId),
@@ -138,10 +128,10 @@ export default function BookingPage() {
 
       const booking = bookingRes.data;
 
-      // 2️⃣ Amount in RUPEES
+      // 2️⃣ Amount in rupees
       const amountInRupees = customData ? Number(customData.totalPrice) : 99;
 
-      // 3️⃣ Create order (PUBLIC)
+      // 3️⃣ Create Razorpay order
       const orderRes = await API_PUBLIC.post("/api/payments/create-order", {
         bookingId: booking.id,
         amount: amountInRupees, // rupees
@@ -149,42 +139,35 @@ export default function BookingPage() {
 
       const order = orderRes.data;
 
-      // 4️⃣ Open Razorpay
+      // 4️⃣ Razorpay options
       const options = {
-        key:"rzp_live_S7C5WPF2wQHogV",
-        amount: order.amount, // paise from backend
+        key: razorpayKey, // dynamic key
+        amount: order.amount, // paise
         currency: order.currency,
         name: "Dr VehicleCare",
         description: "Bike Service Payment",
         order_id: order.id,
-
         handler: async function (response) {
           try {
-            // verify (PRIVATE)
             await API_PRIVATE.post("/api/payments/verify", {
               bookingId: booking.id,
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
             });
-
             router.push("/book/booking-success");
           } catch (err) {
             console.error("Verify failed:", err);
             alert("Payment verification failed!");
           }
         },
-
-        modal: {
-          ondismiss: () => alert("Payment cancelled"),
-        },
-
+        modal: { ondismiss: () => alert("Payment cancelled") },
         theme: { color: "#dc2626" },
       };
 
       const rzp = new window.Razorpay(options);
 
-      rzp.on("payment.failed", function (response) {
+      rzp.on("payment.failed", (response) => {
         console.error("Payment failed:", response.error);
         alert("Payment failed: " + response.error.description);
       });
@@ -267,4 +250,3 @@ export default function BookingPage() {
     </div>
   );
 }
-
