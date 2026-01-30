@@ -30,7 +30,10 @@ export default function BookingPage() {
   // ================= Load Razorpay Key =================
   useEffect(() => {
     API.get("/api/payments/key")
-      .then((res) => setRazorpayKey(res.data.key))
+      .then((res) => {
+        console.log("Razorpay key loaded:", res.data);
+        setRazorpayKey(res.data.key);
+      })
       .catch((err) => console.error("Razorpay Key Error:", err));
   }, []);
 
@@ -86,10 +89,10 @@ export default function BookingPage() {
   // ================= Razorpay loader =================
   const loadRazorpayScript = () =>
     new Promise((resolve) => {
-      if (document.getElementById("razorpay-script")) return resolve(true);
+      if (document.getElementById("razorpay-checkout-js")) return resolve(true);
 
       const script = document.createElement("script");
-      script.id = "razorpay-script";
+      script.id = "razorpay-checkout-js";
       script.src = "https://checkout.razorpay.com/v1/checkout.js";
       script.async = true;
 
@@ -122,7 +125,12 @@ export default function BookingPage() {
         return;
       }
 
-      // 1️⃣ Create booking
+      if (!window.Razorpay) {
+        alert("Razorpay not available. Script blocked.");
+        return;
+      }
+
+      // 1️⃣ Create booking (JWT REQUIRED)
       const bookingRes = await API.post(
         "/api/bookings",
         {
@@ -141,43 +149,40 @@ export default function BookingPage() {
       );
 
       const booking = bookingRes.data;
+      console.log("Booking created:", booking);
 
-      // 2️⃣ Amount in RUPEES (backend converts to paise)
+      // 2️⃣ Amount in RUPEES
       const amountInRupees = customData ? Number(customData.totalPrice) : 99;
 
-      // 3️⃣ Create order
-      const orderRes = await API.post(
-        "/api/payments/create-order",
-        {
-          bookingId: booking.id,
-          amount: amountInRupees, // ✅ RUPEES
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      // 3️⃣ Create order (NO TOKEN REQUIRED)
+      const orderRes = await API.post("/api/payments/create-order", {
+        bookingId: booking.id,
+        amount: amountInRupees,
+      });
 
       const order = orderRes.data;
+      console.log("Order created:", order);
 
       // 4️⃣ Open Razorpay popup
       const options = {
         key: razorpayKey,
-        amount: order.amount, // paise from backend
-        currency: "INR",
+        amount: order.amount, // paise
+        currency: order.currency || "INR",
         name: "Dr VehicleCare",
         description: "Bike Service Payment",
         order_id: order.id,
 
         handler: async function (response) {
           try {
-            await API.post(
-              "/api/payments/verify",
-              {
-                bookingId: booking.id,
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-              },
-              { headers: { Authorization: `Bearer ${token}` } }
-            );
+            console.log("Razorpay success:", response);
+
+            // 5️⃣ Verify payment (NO TOKEN REQUIRED)
+            await API.post("/api/payments/verify", {
+              bookingId: booking.id.toString(),
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            });
 
             router.push("/book/booking-success");
           } catch (err) {
@@ -188,12 +193,6 @@ export default function BookingPage() {
 
         modal: {
           ondismiss: () => alert("Payment cancelled"),
-        },
-
-        prefill: {
-          name: "Customer",
-          email: "customer@email.com",
-          contact: "9999999999",
         },
 
         theme: { color: "#dc2626" },
