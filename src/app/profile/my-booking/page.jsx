@@ -38,9 +38,9 @@ export default function MyBookingsPage() {
 
   useEffect(() => {
     // Only run in browser
-    const storedToken = localStorage.getItem("token");
-    setToken(storedToken);
-    fetchBookings(storedToken);
+    const stoblueToken = localStorage.getItem("token");
+    setToken(stoblueToken);
+    fetchBookings(stoblueToken);
   }, []);
 
   // Delete booking
@@ -64,7 +64,7 @@ export default function MyBookingsPage() {
     );
 
   return (
-    <div className="min-h-screen bg-gray-100 p-5">
+    <div className="min-h-screen bg-blue-50 p-5">
       <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">
         My Bookings
       </h1>
@@ -88,7 +88,7 @@ export default function MyBookingsPage() {
                       ? "bg-yellow-200 text-yellow-800"
                       : b.status === "COMPLETED"
                       ? "bg-green-200 text-green-700"
-                      : "bg-red-200 text-red-700"
+                      : "bg-blue-200 text-blue-700"
                   }`}
                 >
                   {b.status}
@@ -116,13 +116,24 @@ export default function MyBookingsPage() {
               </div>
 
               <div className="mt-4 flex justify-between items-center">
-                <button className="flex items-center text-blue-600 font-medium hover:underline">
-                  View Details <FiChevronRight />
-                </button>
+
+
+                <div className="flex justify-between mt-2">
+                  <span className="text-gray-600 font-medium">Payment:</span>
+                  <span
+                    className={`px-2 py-1 rounded-lg text-sm font-semibold ${
+                      b.paymentStatus === "PAID"
+                        ? "bg-green-200 text-green-700"
+                        : "bg-blue-200 text-blue-700"
+                    }`}
+                  >
+                    {b.paymentStatus}
+                  </span>
+                </div>
 
                 <button
                   onClick={() => handleDelete(b.id)}
-                  className="flex items-center text-red-600 font-medium hover:underline"
+                  className="flex items-center text-blue-600 font-medium hover:underline"
                 >
                   <FiTrash2 className="mr-1" /> Delete
                 </button>
