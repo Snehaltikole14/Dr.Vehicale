@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 
+const BACKEND_URL = "https://dr-vehicle-backend.onrender.com";
+
 export default function CustomService() {
   const [companies, setCompanies] = useState([]);
   const [models, setModels] = useState([]);
@@ -28,6 +30,11 @@ export default function CustomService() {
   // 🔐 AUTH USER
   const [userId, setUserId] = useState(null);
 
+  const getToken = () => {
+    const token = localStorage.getItem("token");
+    return token ? token : null;
+  };
+
   useEffect(() => {
     const storedUser = JSON.parse(localStorage.getItem("user"));
     if (storedUser?.id) setUserId(storedUser.id);
@@ -35,9 +42,10 @@ export default function CustomService() {
 
   // ---------------- Load companies ----------------
   useEffect(() => {
-    fetch("https://dr-vehicle-backend.onrender.com/api/bikes/companies")
+    fetch(`${BACKEND_URL}/api/bikes/companies`)
       .then((res) => res.json())
-      .then((data) => setCompanies(data));
+      .then((data) => setCompanies(data))
+      .catch((err) => console.error("Companies error:", err));
   }, []);
 
   // ---------------- Load query params ----------------
@@ -53,11 +61,10 @@ export default function CustomService() {
   // ---------------- Load models ----------------
   useEffect(() => {
     if (selectedCompany) {
-      fetch(
-        `https://dr-vehicle-backend.onrender.com/api/bikes/companies/${selectedCompany}/models`
-      )
+      fetch(`${BACKEND_URL}/api/bikes/companies/${selectedCompany}/models`)
         .then((res) => res.json())
-        .then((data) => setModels(data));
+        .then((data) => setModels(data))
+        .catch((err) => console.error("Models error:", err));
     } else {
       setModels([]);
       setSelectedModel("");
@@ -77,13 +84,25 @@ export default function CustomService() {
 
   // ---------------- Fetch saved services ----------------
   const fetchSavedServices = async () => {
-    if (!userId) return;
+    const token = getToken();
+    if (!userId || !token) return;
 
     try {
-      const res = await fetch(
-        `https://dr-vehicle-backend.onrender.com/api/customized/user/${userId}`
-      );
+      const res = await fetch(`${BACKEND_URL}/api/customized/user/${userId}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.status === 403) {
+        alert("Session expired. Please login again.");
+        window.location.href = "/login";
+        return;
+      }
+
       if (!res.ok) throw new Error("Failed to fetch saved services");
+
       const data = await res.json();
       setSavedServices(data);
     } catch (err) {
@@ -103,34 +122,48 @@ export default function CustomService() {
         setPrice(null);
         return;
       }
+
       try {
-        const res = await fetch(
-          "https://dr-vehicle-backend.onrender.com/api/customized/calculate",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              bikeCompany: selectedCompany,
-              bikeModel: selectedModel,
-              cc,
-              ...services,
-            }),
-          }
-        );
+        const res = await fetch(`${BACKEND_URL}/api/customized/calculate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            bikeCompany: selectedCompany,
+            bikeModel: selectedModel,
+            cc,
+            ...services,
+          }),
+        });
+
+        if (!res.ok) return;
+
         const data = await res.json();
         setPrice(data);
       } catch (err) {
         console.error(err);
       }
     };
+
     calculatePrice();
   }, [selectedCompany, selectedModel, cc, services]);
 
   // ---------------- Save or update service ----------------
   const handleSave = async () => {
-    if (!userId) {
+    const token = getToken();
+
+    if (!userId || !token) {
       alert("Please login to save your custom service");
       window.location.href = "/login";
+      return;
+    }
+
+    if (!selectedCompany || !selectedModel || !cc) {
+      alert("Please select bike company and model");
+      return;
+    }
+
+    if (!price) {
+      alert("Price not calculated yet!");
       return;
     }
 
@@ -144,21 +177,41 @@ export default function CustomService() {
     };
 
     const url = editingId
-      ? `https://dr-vehicle-backend.onrender.com/api/customized/${editingId}`
-      : "https://dr-vehicle-backend.onrender.com/api/customized/save";
+      ? `${BACKEND_URL}/api/customized/${editingId}`
+      : `${BACKEND_URL}/api/customized/save`;
 
     const method = editingId ? "PUT" : "POST";
 
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`, // ✅ FIX
+        },
+        body: JSON.stringify(body),
+      });
 
-    if (res.ok) {
+      if (res.status === 403) {
+        alert("Session expired. Please login again.");
+        window.location.href = "/login";
+        return;
+      }
+
+      if (!res.ok) {
+        const errText = await res.text();
+        console.log("Save error:", res.status, errText);
+        alert("Save failed!");
+        return;
+      }
+
       const savedService = await res.json();
       alert(editingId ? "Updated successfully!" : "Saved successfully!");
+
       window.location.href = `/book?customServiceId=${savedService.id}&companyId=${savedService.bikeCompany}&modelId=${savedService.bikeModel}`;
+    } catch (err) {
+      console.error(err);
+      alert("Something went wrong!");
     }
   };
 
@@ -170,6 +223,7 @@ export default function CustomService() {
     setSelectedCompany(service.bikeCompany);
     setSelectedModel(service.bikeModel);
     setCc(service.cc);
+
     setServices({
       wash: service.wash,
       oilChange: service.oilChange,
@@ -179,17 +233,40 @@ export default function CustomService() {
       fullbodyPolishing: service.fullbodyPolishing,
       generalInspection: service.generalInspection,
     });
+
     setPrice(service.totalPrice);
   };
 
   const handleDelete = async (id) => {
-    if (!userId) return;
+    const token = getToken();
+
+    if (!userId || !token) {
+      alert("Please login first");
+      window.location.href = "/login";
+      return;
+    }
+
     if (!confirm("Delete this service?")) return;
-    const res = await fetch(
-      `https://dr-vehicle-backend.onrender.com/api/customized/${id}`,
-      { method: "DELETE" }
-    );
-    if (res.ok) fetchSavedServices();
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/customized/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`, // ✅ FIX
+        },
+      });
+
+      if (res.status === 403) {
+        alert("Session expired. Please login again.");
+        window.location.href = "/login";
+        return;
+      }
+
+      if (res.ok) fetchSavedServices();
+      else alert("Delete failed");
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   return (
