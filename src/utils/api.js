@@ -1,26 +1,5 @@
-// "use client"; // <-- IMPORTANT
-
-// import axios from "axios";
-
-// export const API = axios.create({
-//   baseURL: "http://localhost:8080",
-// });
-
-// API.interceptors.request.use(
-//   (config) => {
-//     if (typeof window !== "undefined") {
-//       // ensure browser
-//       const token = localStorage.getItem("token");
-//       if (token) {
-//         config.headers["Authorization"] = `Bearer ${token}`;
-//       }
-//     }
-//     return config;
-//   },
-//   (error) => Promise.reject(error)
-// );
-// utils/api.js
 // src/utils/api.js
+ "use client";
 import axios from "axios";
 
 const BASE_URL = "https://dr-vehicle-backend.onrender.com";
@@ -41,7 +20,7 @@ export const API_PRIVATE = axios.create({
   },
 });
 
-// ✅ Add token automatically for private calls
+// ✅ Auto attach token for private API
 API_PRIVATE.interceptors.request.use((config) => {
   if (typeof window !== "undefined") {
     const token = localStorage.getItem("token");
@@ -51,3 +30,6 @@ API_PRIVATE.interceptors.request.use((config) => {
   }
   return config;
 });
+
+// ✅ Backward compatible export (old code uses API)
+export const API = API_PRIVATE;
