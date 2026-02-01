@@ -1,4 +1,4 @@
- "use client";
+"use client";
 
 import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
@@ -12,7 +12,14 @@ const TIME_SLOTS = [
 ];
 
 export default function BookingPage() {
-  const { register, handleSubmit, watch, setValue } = useForm({ mode: "onChange" });
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors },
+  } = useForm({ mode: "onChange" });
+
   const [companies, setCompanies] = useState([]);
   const [models, setModels] = useState([]);
   const [customData, setCustomData] = useState(null);
@@ -62,12 +69,13 @@ export default function BookingPage() {
       setValue("modelId", "");
       return;
     }
+
     API_PUBLIC.get(`/api/bikes/companies/${selectedCompany}/models`)
       .then((res) => setModels(res.data))
       .catch((err) => console.error("Models error:", err));
   }, [selectedCompany, setValue]);
 
-  // ================= Load Customized Service =================
+  // ================= Load Customized Service from Query Param =================
   useEffect(() => {
     if (initialized.current) return;
 
@@ -76,12 +84,16 @@ export default function BookingPage() {
 
     if (customServiceId) {
       setValue("serviceType", "CUSTOMIZED");
+
       API_PUBLIC.get(`/api/customized/${customServiceId}`)
         .then((res) => {
           const data = res.data;
+
           setCustomData(data);
-          setValue("companyId", data.bikeCompany);
-          setValue("modelId", data.bikeModel);
+
+          // auto-fill company + model
+          setValue("companyId", String(data.bikeCompany));
+          setValue("modelId", String(data.bikeModel));
         })
         .catch((err) => console.error("Customized error:", err));
     }
@@ -89,9 +101,13 @@ export default function BookingPage() {
     initialized.current = true;
   }, [setValue]);
 
+  // ================= Redirect to Custom Service Page when selected CUSTOMIZED =================
   useEffect(() => {
-    if (selectedServiceType !== "CUSTOMIZED") setCustomData(null);
-  }, [selectedServiceType]);
+    // Only redirect if user selects CUSTOMIZED manually
+    if (selectedServiceType === "CUSTOMIZED" && !customData) {
+      router.push("/custom-service"); // 🔥 Your customized service page route
+    }
+  }, [selectedServiceType, customData, router]);
 
   // ================= Submit Booking =================
   const onSubmit = async (data) => {
@@ -123,6 +139,8 @@ export default function BookingPage() {
         city: "Pune",
         landmark: data.landmark,
         notes: data.notes,
+
+        // customized service object
         customizedService: customData || null,
       });
 
@@ -141,7 +159,7 @@ export default function BookingPage() {
 
       // 4️⃣ Razorpay options
       const options = {
-        key: "rzp_live_S7C5WPF2wQHogV",
+        key: razorpayKey, // ✅ use backend key (not hardcoded)
         amount: order.amount, // paise
         currency: order.currency,
         name: "Dr VehicleCare",
@@ -155,6 +173,7 @@ export default function BookingPage() {
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
             });
+
             router.push("/book/booking-success");
           } catch (err) {
             console.error("Verify failed:", err);
@@ -185,8 +204,25 @@ export default function BookingPage() {
     <div className="max-w-2xl mx-auto p-6">
       <h1 className="text-3xl font-bold mb-6">Book a Bike Service</h1>
 
+      {/* ✅ Show customized details */}
+      {customData && (
+        <div className="mb-5 p-4 rounded-xl border bg-green-50">
+          <p className="font-semibold text-green-700">
+            Customized Service Loaded ✅
+          </p>
+          <p className="text-sm text-gray-700">
+            Total Price: <b>₹{customData.totalPrice}</b>
+          </p>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <select {...register("companyId", { required: true })} className="border p-2 w-full rounded">
+        {/* Company */}
+        <select
+          {...register("companyId", { required: true })}
+          disabled={!!customData} // 🔥 lock when customized loaded
+          className="border p-2 w-full rounded"
+        >
           <option value="">Select Company</option>
           {companies.map((c) => (
             <option key={c.id} value={c.id}>
@@ -195,9 +231,10 @@ export default function BookingPage() {
           ))}
         </select>
 
+        {/* Model */}
         <select
           {...register("modelId", { required: true })}
-          disabled={!selectedCompany}
+          disabled={!selectedCompany || !!customData} // 🔥 lock when customized loaded
           className="border p-2 w-full rounded"
         >
           <option value="">Select Model</option>
@@ -208,7 +245,11 @@ export default function BookingPage() {
           ))}
         </select>
 
-        <select {...register("serviceType", { required: true })} className="border p-2 w-full rounded">
+        {/* Service type */}
+        <select
+          {...register("serviceType", { required: true })}
+          className="border p-2 w-full rounded"
+        >
           <option value="">Select Service</option>
           <option value="PLAN_UPTO_100CC">Up to 100cc</option>
           <option value="PLAN_100_TO_160CC">100cc - 160cc</option>
@@ -217,6 +258,7 @@ export default function BookingPage() {
           <option value="CUSTOMIZED">Customized</option>
         </select>
 
+        {/* Date */}
         <input
           type="date"
           {...register("appointmentDate", { required: true })}
@@ -224,7 +266,11 @@ export default function BookingPage() {
           className="border p-2 w-full rounded"
         />
 
-        <select {...register("timeSlot", { required: true })} className="border p-2 w-full rounded">
+        {/* Time slot */}
+        <select
+          {...register("timeSlot", { required: true })}
+          className="border p-2 w-full rounded"
+        >
           <option value="">Select Time Slot</option>
           {TIME_SLOTS.map((s) => (
             <option key={s.value} value={s.value}>
@@ -233,17 +279,29 @@ export default function BookingPage() {
           ))}
         </select>
 
+        {/* Address */}
         <textarea
           {...register("fullAddress", { required: true })}
           placeholder="Full Address"
           className="border p-2 w-full rounded"
         />
 
-        <input {...register("landmark")} placeholder="Landmark" className="border p-2 w-full rounded" />
+        <input
+          {...register("landmark")}
+          placeholder="Landmark"
+          className="border p-2 w-full rounded"
+        />
 
-        <textarea {...register("notes")} placeholder="Notes" className="border p-2 w-full rounded" />
+        <textarea
+          {...register("notes")}
+          placeholder="Notes"
+          className="border p-2 w-full rounded"
+        />
 
-        <button disabled={loading} className="bg-blue-600 text-white py-2 rounded w-full">
+        <button
+          disabled={loading}
+          className="bg-blue-600 text-white py-2 rounded w-full"
+        >
           {loading ? "Processing..." : "Pay & Book"}
         </button>
       </form>
