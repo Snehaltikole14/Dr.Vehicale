@@ -146,32 +146,78 @@ export default function BookingDetails() {
         </div>
 
         {/* Booking Info */}
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-2">Booking Information</h2>
-          <p><b>Service:</b> {booking.serviceType || "N/A"}</p>
+<div className="mb-6">
+  <h2 className="text-lg font-semibold mb-2">Booking Information</h2>
+  <p><b>Service:</b> {booking.serviceType || "N/A"}</p>
 
-          {booking.serviceType === "CUSTOMIZED" && booking.customizedService && (
-            <div className="mb-4 p-4 bg-blue-50 rounded-lg">
-              <h3 className="text-md font-semibold mb-2">Customization Details</h3>
+  {/* ✅ CUSTOMIZED DETAILS FIX */}
+  {booking.serviceType === "CUSTOMIZED" && (() => {
+    const cs =
+      booking.customizedService ||
+      booking.customService ||
+      booking.customized ||
+      booking.customServiceDetails ||
+      null;
 
-              <p><b>CC:</b> {booking.customizedService.cc || 0}</p>
-              <p><b>Wash:</b> {booking.customizedService.wash ? "Yes" : "No"}</p>
-              <p><b>Oil Change:</b> {booking.customizedService.oilChange ? "Yes" : "No"}</p>
-              <p><b>Chain Lube:</b> {booking.customizedService.chainLube ? "Yes" : "No"}</p>
-              <p><b>Engine Tuneup:</b> {booking.customizedService.engineTuneUp ? "Yes" : "No"}</p>
-              <p><b>Break Check:</b> {booking.customizedService.breakCheck ? "Yes" : "No"}</p>
-              <p><b>Full Body Polishing:</b> {booking.customizedService.fullbodyPolishing ? "Yes" : "No"}</p>
-              <p><b>General Inspection:</b> {booking.customizedService.generalInspection ? "Yes" : "No"}</p>
+    // If backend only sends ID
+    const csId =
+      booking.customizedServiceId ||
+      booking.customServiceId ||
+      booking.customized_id ||
+      null;
 
-              <p className="font-bold mt-2">
-                <b>Total Price:</b> ₹{booking.customizedService.totalPrice || 0}
-              </p>
-            </div>
-          )}
-
-          <p><b>Date:</b> {booking.appointmentDate || "N/A"}</p>
-          <p><b>Status:</b> {booking.status || "N/A"}</p>
+    if (!cs && !csId) {
+      return (
+        <div className="mb-4 p-4 bg-red-50 rounded-lg border">
+          <p className="font-semibold text-red-600">
+            Customized service not found in API response ❌
+          </p>
+          <p className="text-sm text-gray-700">
+            Backend is sending only ID or not returning customized service object.
+          </p>
         </div>
+      );
+    }
+
+    // If only ID present (no object)
+    if (!cs && csId) {
+      return (
+        <div className="mb-4 p-4 bg-yellow-50 rounded-lg border">
+          <p className="font-semibold text-yellow-700">
+            Customized service linked (ID: {csId}) but details not returned.
+          </p>
+          <p className="text-sm text-gray-700">
+            Please update backend: Admin booking details API should include customizedService object.
+          </p>
+        </div>
+      );
+    }
+
+    // If object exists
+    return (
+      <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+        <h3 className="text-md font-semibold mb-2">Customization Details</h3>
+
+        <p><b>CC:</b> {cs.cc || 0}</p>
+        <p><b>Wash:</b> {cs.wash ? "Yes" : "No"}</p>
+        <p><b>Oil Change:</b> {cs.oilChange ? "Yes" : "No"}</p>
+        <p><b>Chain Lube:</b> {cs.chainLube ? "Yes" : "No"}</p>
+        <p><b>Engine Tuneup:</b> {cs.engineTuneUp ? "Yes" : "No"}</p>
+        <p><b>Break Check:</b> {cs.breakCheck ? "Yes" : "No"}</p>
+        <p><b>Full Body Polishing:</b> {cs.fullbodyPolishing ? "Yes" : "No"}</p>
+        <p><b>General Inspection:</b> {cs.generalInspection ? "Yes" : "No"}</p>
+
+        <p className="font-bold mt-2">
+          <b>Total Price:</b> ₹{cs.totalPrice || 0}
+        </p>
+      </div>
+    );
+  })()}
+
+  <p><b>Date:</b> {booking.appointmentDate || "N/A"}</p>
+  <p><b>Status:</b> {booking.status || "N/A"}</p>
+</div>
+
 
         {/* Bike Info */}
         <div className="mb-6">
@@ -236,3 +282,4 @@ export default function BookingDetails() {
     </div>
   );
 }
+
