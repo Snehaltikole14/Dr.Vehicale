@@ -12,6 +12,28 @@ export default function BookingDetails() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
+  // ================= PAYMENT HELPERS =================
+  const getPaymentStatus = (b) => {
+    // support different backend response structures
+    const status =
+      b?.paymentStatus ||
+      b?.payment?.status ||
+      b?.payment?.paymentStatus ||
+      (b?.isPaid ? "PAID" : null) ||
+      (b?.paymentVerified ? "PAID" : null) ||
+      (b?.payment?.verified ? "PAID" : null) ||
+      null;
+
+    return status ? String(status).toUpperCase() : "UNPAID";
+  };
+
+  const getPaymentBadgeClass = (status) => {
+    if (status === "PAID" || status === "SUCCESS") return "bg-green-100 text-green-700";
+    if (status === "FAILED") return "bg-red-100 text-red-700";
+    if (status === "PENDING") return "bg-yellow-100 text-yellow-700";
+    return "bg-gray-100 text-gray-700"; // UNPAID / UNKNOWN
+  };
+
   const fetchBooking = async () => {
     try {
       setError("");
@@ -66,6 +88,50 @@ export default function BookingDetails() {
   if (error) return <p className="p-10 text-red-600">{error}</p>;
   if (!booking) return <p className="p-10">No booking found</p>;
 
+  // ===== Payment extracted values =====
+  const payStatus = getPaymentStatus(booking);
+
+  const paymentObj = booking.payment || booking.paymentDetails || null;
+
+  const paymentMethod =
+    booking.paymentMethod ||
+    paymentObj?.method ||
+    paymentObj?.paymentMethod ||
+    "";
+
+  const razorpayOrderId =
+    booking.razorpayOrderId ||
+    paymentObj?.razorpayOrderId ||
+    paymentObj?.razorpay_order_id ||
+    "";
+
+  const razorpayPaymentId =
+    booking.razorpayPaymentId ||
+    paymentObj?.razorpayPaymentId ||
+    paymentObj?.razorpay_payment_id ||
+    "";
+
+  const razorpaySignature =
+    booking.razorpaySignature ||
+    paymentObj?.razorpaySignature ||
+    paymentObj?.razorpay_signature ||
+    "";
+
+  const amount =
+    booking.amount ||
+    booking.servicePrice ||
+    booking.price ||
+    paymentObj?.amount ||
+    "";
+
+  const currency = paymentObj?.currency || "INR";
+
+  const verified =
+    booking.paymentVerified ??
+    paymentObj?.verified ??
+    paymentObj?.isVerified ??
+    null;
+
   return (
     <div className="min-h-screen p-10 bg-gray-100">
       <div className="bg-white p-6 rounded-xl shadow max-w-3xl mx-auto">
@@ -112,6 +178,40 @@ export default function BookingDetails() {
           <h2 className="text-lg font-semibold mb-2">Bike Details</h2>
           <p><b>Company:</b> {booking.bikeCompany?.name || "N/A"}</p>
           <p><b>Model:</b> {booking.bikeModel?.modelName || "N/A"}</p>
+        </div>
+
+        {/* ✅ PAYMENT INFO */}
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold mb-2">Payment Information</h2>
+
+          <div className="p-4 rounded-lg border bg-gray-50">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="font-semibold">Payment Status:</span>
+              <span
+                className={`px-3 py-1 rounded-full text-xs font-semibold ${getPaymentBadgeClass(
+                  payStatus
+                )}`}
+              >
+                {payStatus}
+              </span>
+            </div>
+
+            <p><b>Amount:</b> {amount ? `₹${amount}` : "N/A"}</p>
+            <p><b>Currency:</b> {currency || "INR"}</p>
+            <p><b>Method:</b> {paymentMethod || "N/A"}</p>
+
+            <div className="mt-3">
+              <p className="font-semibold mb-2">Razorpay Details</p>
+              <p className="break-all"><b>Order ID:</b> {razorpayOrderId || "N/A"}</p>
+              <p className="break-all"><b>Payment ID:</b> {razorpayPaymentId || "N/A"}</p>
+              <p className="break-all"><b>Signature:</b> {razorpaySignature || "N/A"}</p>
+            </div>
+
+            <p className="mt-3">
+              <b>Verified:</b>{" "}
+              {verified === null ? "N/A" : verified ? "Yes ✅" : "No ❌"}
+            </p>
+          </div>
         </div>
 
         {/* Action Buttons */}
