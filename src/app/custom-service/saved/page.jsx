@@ -2,27 +2,29 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-
 import { useRouter } from "next/navigation";
+import { API } from "@/utils/api"; // ✅ your API instance
+
 export default function SavedServices() {
   const [services, setServices] = useState([]);
-  const userId = 1; // TODO: replace with token-based logged-in user id
+  const router = useRouter();
 
-
-const router = useRouter();
   useEffect(() => {
-    fetch(
-      `https://dr-vehicle-backend.onrender.com/api/customized/user/${userId}`
-    )
-      .then((res) => res.json())
-      .then((data) => setServices(data));
+    const fetchServices = async () => {
+      try {
+        // ✅ token automatically added by API interceptor
+        const res = await API.get("/api/customized/my");
+        setServices(res.data);
+      } catch (error) {
+        console.error("Error fetching saved services:", error);
+      }
+    };
+
+    fetchServices();
   }, []);
-  
+
   const handleBookNow = (service) => {
-    // Navigate to booking page with query params
-    router.push(
-      `/book?customServiceId=${service.id}&companyId=${service.bikeCompanyId}&modelId=${service.bikeModelId}`
-    );
+    router.push(`/book?customServiceId=${service.id}`);
   };
 
   return (
@@ -41,11 +43,12 @@ const router = useRouter();
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               onClick={() => handleBookNow(s)}
-             className="p-6 bg-white rounded-3xl shadow-lg border
-              border-gray-100" >
+              className="p-6 bg-white rounded-3xl shadow-lg border border-gray-100 cursor-pointer hover:shadow-xl transition"
+            >
               <h2 className="text-xl font-semibold text-gray-800 mb-2">
                 {s.bikeCompany} - {s.bikeModel} ({s.cc} CC)
               </h2>
+
               <p className="text-gray-600 mb-3">
                 <strong>Services:</strong>{" "}
                 {[
@@ -60,6 +63,7 @@ const router = useRouter();
                   .filter(Boolean)
                   .join(", ")}
               </p>
+
               <p className="text-gray-800 font-bold text-lg">
                 Total Price: ₹{s.totalPrice}
               </p>
