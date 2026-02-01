@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { API_PUBLIC, API_PRIVATE } from "@/utils/api";
@@ -15,9 +15,9 @@ export default function BookingPage() {
   const { register, handleSubmit, watch, setValue, getValues } = useForm({
     mode: "onChange",
     defaultValues: {
-      serviceType: "",
       companyId: "",
       modelId: "",
+      serviceType: "",
       appointmentDate: "",
       timeSlot: "",
       fullAddress: "",
@@ -30,6 +30,9 @@ export default function BookingPage() {
   const [models, setModels] = useState([]);
 
   const [customData, setCustomData] = useState(null);
+  const [customCompanyName, setCustomCompanyName] = useState("");
+  const [customModelName, setCustomModelName] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [razorpayKey, setRazorpayKey] = useState("");
 
@@ -38,18 +41,22 @@ export default function BookingPage() {
 
   const selectedCompany = watch("companyId");
   const selectedServiceType = watch("serviceType");
+
   const today = new Date().toISOString().split("T")[0];
 
   // ================= Razorpay Script Loader =================
   const loadRazorpayScript = () =>
     new Promise((resolve) => {
       if (document.getElementById("razorpay-script")) return resolve(true);
+
       const script = document.createElement("script");
       script.id = "razorpay-script";
       script.src = "https://checkout.razorpay.com/v1/checkout.js";
       script.async = true;
+
       script.onload = () => resolve(true);
       script.onerror = () => resolve(false);
+
       document.body.appendChild(script);
     });
 
@@ -82,62 +89,72 @@ export default function BookingPage() {
       .catch((err) => console.error("Models error:", err));
   }, [selectedCompany, setValue]);
 
-  // ================= Restore booking draft =================
+  // ================= Restore booking form draft =================
   useEffect(() => {
     const saved = localStorage.getItem("bookingDraft");
     if (saved) {
       const draft = JSON.parse(saved);
       Object.entries(draft).forEach(([key, value]) => setValue(key, value));
-      localStorage.removeItem("bookingDraft");
     }
   }, [setValue]);
 
   // ================= Load Customized Service from Query Param =================
   useEffect(() => {
     if (initialized.current) return;
+    initialized.current = true;
 
     const params = new URLSearchParams(window.location.search);
     const customServiceId = params.get("customServiceId");
 
-    if (customServiceId) {
-      setValue("serviceType", "CUSTOMIZED");
+    if (!customServiceId) return;
 
-      API_PRIVATE.get(`/api/customized/${customServiceId}`)
-        .then((res) => {
-          const data = res.data;
-          setCustomData(data);
+    // Force serviceType = CUSTOMIZED
+    setValue("serviceType", "CUSTOMIZED");
 
-          // IMPORTANT: these must be IDs (not names)
-          setValue("companyId", String(data.bikeCompanyId));
-          setValue("modelId", String(data.bikeModelId));
-        })
-        .catch((err) => console.error("Customized error:", err));
-    }
+    API_PRIVATE.get(`/api/customized/${customServiceId}`)
+      .then(async (res) => {
+        const data = res.data;
+        setCustomData(data);
 
-    initialized.current = true;
+        // IMPORTANT: bikeCompany and bikeModel are IDs
+        const companyId = String(data.bikeCompany);
+        const modelId = String(data.bikeModel);
+
+        setValue("companyId", companyId);
+        setValue("modelId", modelId);
+
+        // Fetch company + model names for UI
+        try {
+          const companyRes = await API_PUBLIC.get("/api/bikes/companies");
+          const companyObj = companyRes.data?.find(
+            (c) => String(c.id) === companyId
+          );
+          setCustomCompanyName(companyObj?.name || `Company #${companyId}`);
+
+          const modelsRes = await API_PUBLIC.get(
+            `/api/bikes/companies/${companyId}/models`
+          );
+          const modelObj = modelsRes.data?.find(
+            (m) => String(m.id) === modelId
+          );
+          setCustomModelName(modelObj?.modelName || `Model #${modelId}`);
+        } catch (e) {
+          console.error("Error loading company/model names", e);
+        }
+      })
+      .catch((err) => {
+        console.error("Customized error:", err);
+        alert("Customized service not found / login required!");
+      });
   }, [setValue]);
-
-  // ================= Get Company/Model Name =================
-  const companyName = useMemo(() => {
-    const id = Number(getValues("companyId"));
-    const company = companies.find((c) => c.id === id);
-    return company?.name || "";
-  }, [companies, getValues, selectedCompany]);
-
-  const modelName = useMemo(() => {
-    const id = Number(getValues("modelId"));
-    const model = models.find((m) => m.id === id);
-    return model?.modelName || "";
-  }, [models, getValues, watch("modelId")]);
 
   // ================= Submit Booking =================
   const onSubmit = async (data) => {
     const token = localStorage.getItem("token");
     if (!token) return router.push("/login");
 
-    // ✅ FIX 1: If CUSTOMIZED selected but customData not loaded -> redirect automatically
+    // If CUSTOMIZED selected but no customData -> redirect to custom-service page
     if (data.serviceType === "CUSTOMIZED" && !customData) {
-      // save booking form values
       localStorage.setItem("bookingDraft", JSON.stringify(getValues()));
       router.push("/custom-service");
       return;
@@ -157,8 +174,8 @@ export default function BookingPage() {
         return;
       }
 
-      // 1️⃣ Create booking
-      const bookingRes = await API_PRIVATE.post("/api/bookings", {
+      // ✅ Booking payload
+      const bookingPayload = {
         bikeCompanyId: Number(data.companyId),
         bikeModelId: Number(data.modelId),
         serviceType: data.serviceType,
@@ -166,12 +183,13 @@ export default function BookingPage() {
         timeSlot: data.timeSlot,
         fullAddress: data.fullAddress,
         city: "Pune",
-        landmark: data.landmark,
-        notes: data.notes,
+        landmark: data.landmark || "",
+        notes: data.notes || "",
+        customizedServiceId: customData ? Number(customData.id) : null, // ✅ FIX
+      };
 
-        customizedServiceId: customData?.id || null,
-      });
-
+      // 1️⃣ Create booking
+      const bookingRes = await API_PRIVATE.post("/api/bookings", bookingPayload);
       const booking = bookingRes.data;
 
       // 2️⃣ Amount in rupees
@@ -203,6 +221,7 @@ export default function BookingPage() {
               razorpay_signature: response.razorpay_signature,
             });
 
+            localStorage.removeItem("bookingDraft");
             router.push("/book/booking-success");
           } catch (err) {
             console.error("Verify failed:", err);
@@ -210,7 +229,9 @@ export default function BookingPage() {
           }
         },
 
-        modal: { ondismiss: () => alert("Payment cancelled") },
+        modal: {
+          ondismiss: () => alert("Payment cancelled"),
+        },
       };
 
       const rzp = new window.Razorpay(options);
@@ -223,63 +244,46 @@ export default function BookingPage() {
       rzp.open();
     } catch (err) {
       console.error("Booking/Payment error:", err);
-      alert("Booking failed");
+      alert("Booking failed! Check console.");
     } finally {
       setLoading(false);
     }
   };
 
-  const selectedServicesList = customData
-    ? [
-        customData.wash && "Wash",
-        customData.oilChange && "Oil Change",
-        customData.chainLube && "Chain Lube",
-        customData.engineTuneUp && "Engine Tune-up",
-        customData.breakCheck && "Brake Check",
-        customData.fullbodyPolishing && "Full Body Polishing",
-        customData.generalInspection && "General Inspection",
-      ].filter(Boolean)
-    : [];
-
   return (
     <div className="max-w-2xl mx-auto p-6">
       <h1 className="text-3xl font-bold mb-6">Book a Bike Service</h1>
 
-      {/* ✅ Show customized details */}
-      {selectedServiceType === "CUSTOMIZED" && (
+      {/* ✅ Customized details box */}
+      {customData && (
         <div className="mb-5 p-4 rounded-xl border bg-green-50">
-          {customData ? (
-            <>
-              <p className="font-semibold text-green-700">
-                Customized Service Loaded ✅
-              </p>
+          <p className="font-semibold text-green-700">
+            Customized Service Loaded ✅
+          </p>
 
-              <p className="text-sm text-gray-700 mt-2">
-                <b>Bike:</b> {companyName} {modelName ? `- ${modelName}` : ""}
-                {customData.cc ? ` (${customData.cc} CC)` : ""}
-              </p>
+          <p className="text-sm text-gray-700 mt-2">
+            <b>Bike:</b> {customCompanyName} - {customModelName} ({customData.cc}{" "}
+            CC)
+          </p>
 
-              <p className="text-sm text-gray-700 mt-1">
-                <b>Services:</b>{" "}
-                {selectedServicesList.length > 0
-                  ? selectedServicesList.join(", ")
-                  : "None"}
-              </p>
+          <p className="text-sm text-gray-700 mt-1">
+            <b>Services:</b>{" "}
+            {[
+              customData.wash && "Wash",
+              customData.oilChange && "Oil Change",
+              customData.chainLube && "Chain Lube",
+              customData.engineTuneUp && "Engine Tune-up",
+              customData.breakCheck && "Brake Check",
+              customData.fullbodyPolishing && "Full Body Polishing",
+              customData.generalInspection && "General Inspection",
+            ]
+              .filter(Boolean)
+              .join(", ")}
+          </p>
 
-              <p className="text-sm text-gray-700 mt-1">
-                <b>Total Price:</b> ₹{customData.totalPrice}
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="font-semibold text-blue-700">
-                Customized Selected ⚡
-              </p>
-              <p className="text-sm text-gray-700">
-                Click Pay & Book → we will take you to Customized Service page.
-              </p>
-            </>
-          )}
+          <p className="text-sm text-gray-700 mt-1">
+            <b>Total Price:</b> ₹{customData.totalPrice}
+          </p>
         </div>
       )}
 
@@ -315,7 +319,7 @@ export default function BookingPage() {
         {/* Service type */}
         <select
           {...register("serviceType", { required: true })}
-          disabled={!!customData}
+          disabled={!!customData} // ✅ lock serviceType if customized loaded
           className="border p-2 w-full rounded"
         >
           <option value="">Select Service</option>
@@ -367,6 +371,7 @@ export default function BookingPage() {
         />
 
         <button
+          type="submit"
           disabled={loading}
           className="bg-blue-600 text-white py-2 rounded w-full"
         >
