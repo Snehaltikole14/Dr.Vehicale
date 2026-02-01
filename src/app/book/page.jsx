@@ -17,7 +17,7 @@ export default function BookingPage() {
     handleSubmit,
     watch,
     setValue,
-    formState: { errors },
+    getValues,
   } = useForm({ mode: "onChange" });
 
   const [companies, setCompanies] = useState([]);
@@ -75,6 +75,18 @@ export default function BookingPage() {
       .catch((err) => console.error("Models error:", err));
   }, [selectedCompany, setValue]);
 
+  // ================= Restore booking form (after customized save) =================
+  useEffect(() => {
+    const saved = localStorage.getItem("bookingDraft");
+    if (saved) {
+      const draft = JSON.parse(saved);
+
+      Object.entries(draft).forEach(([key, value]) => {
+        setValue(key, value);
+      });
+    }
+  }, [setValue]);
+
   // ================= Load Customized Service from Query Param =================
   useEffect(() => {
     if (initialized.current) return;
@@ -88,10 +100,8 @@ export default function BookingPage() {
       API_PUBLIC.get(`/api/customized/${customServiceId}`)
         .then((res) => {
           const data = res.data;
-
           setCustomData(data);
 
-          // auto-fill company + model
           setValue("companyId", String(data.bikeCompany));
           setValue("modelId", String(data.bikeModel));
         })
@@ -101,18 +111,20 @@ export default function BookingPage() {
     initialized.current = true;
   }, [setValue]);
 
-  // ================= Redirect to Custom Service Page when selected CUSTOMIZED =================
-  useEffect(() => {
-    // Only redirect if user selects CUSTOMIZED manually
-    if (selectedServiceType === "CUSTOMIZED" && !customData) {
-      router.push("/custom-service"); // 🔥 Your customized service page route
-    }
-  }, [selectedServiceType, customData, router]);
-
   // ================= Submit Booking =================
   const onSubmit = async (data) => {
     const token = localStorage.getItem("token");
     if (!token) return router.push("/login");
+
+    // ✅ IF CUSTOMIZED AND NO customData -> go to custom-service page
+    if (data.serviceType === "CUSTOMIZED" && !customData) {
+      // Save form draft
+      localStorage.setItem("bookingDraft", JSON.stringify(getValues()));
+
+      // Redirect to custom service page
+      router.push("/custom-service");
+      return;
+    }
 
     if (!razorpayKey) {
       alert("Razorpay Key not loaded. Please refresh.");
@@ -139,8 +151,6 @@ export default function BookingPage() {
         city: "Pune",
         landmark: data.landmark,
         notes: data.notes,
-
-        // customized service object
         customizedService: customData || null,
       });
 
@@ -152,15 +162,15 @@ export default function BookingPage() {
       // 3️⃣ Create Razorpay order
       const orderRes = await API_PUBLIC.post("/api/payments/create-order", {
         bookingId: booking.id,
-        amount: amountInRupees, // rupees
+        amount: amountInRupees,
       });
 
       const order = orderRes.data;
 
       // 4️⃣ Razorpay options
       const options = {
-        key: razorpayKey, // ✅ use backend key (not hardcoded)
-        amount: order.amount, // paise
+        key: razorpayKey,
+        amount: order.amount,
         currency: order.currency,
         name: "Dr VehicleCare",
         description: "Bike Service Payment",
@@ -173,6 +183,9 @@ export default function BookingPage() {
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
             });
+
+            // Clear draft after success
+            localStorage.removeItem("bookingDraft");
 
             router.push("/book/booking-success");
           } catch (err) {
@@ -220,7 +233,7 @@ export default function BookingPage() {
         {/* Company */}
         <select
           {...register("companyId", { required: true })}
-          disabled={!!customData} // 🔥 lock when customized loaded
+          disabled={!!customData}
           className="border p-2 w-full rounded"
         >
           <option value="">Select Company</option>
@@ -234,7 +247,7 @@ export default function BookingPage() {
         {/* Model */}
         <select
           {...register("modelId", { required: true })}
-          disabled={!selectedCompany || !!customData} // 🔥 lock when customized loaded
+          disabled={!selectedCompany || !!customData}
           className="border p-2 w-full rounded"
         >
           <option value="">Select Model</option>
