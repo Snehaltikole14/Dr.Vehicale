@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-
-const BACKEND_URL = "https://dr-vehicle-backend.onrender.com";
+import { useRouter } from "next/navigation";
+import { API_PUBLIC, API_PRIVATE } from "@/utils/api";
 
 export default function CustomService() {
+  const router = useRouter();
+
   const [companies, setCompanies] = useState([]);
   const [models, setModels] = useState([]);
   const [savedServices, setSavedServices] = useState([]);
@@ -27,24 +29,10 @@ export default function CustomService() {
   const [price, setPrice] = useState(null);
   const [editingId, setEditingId] = useState(null);
 
-  // 🔐 AUTH USER
-  const [userId, setUserId] = useState(null);
-
-  const getToken = () => {
-    const token = localStorage.getItem("token");
-    return token ? token : null;
-  };
-
-  useEffect(() => {
-    const storedUser = JSON.parse(localStorage.getItem("user"));
-    if (storedUser?.id) setUserId(storedUser.id);
-  }, []);
-
   // ---------------- Load companies ----------------
   useEffect(() => {
-    fetch(`${BACKEND_URL}/api/bikes/companies`)
-      .then((res) => res.json())
-      .then((data) => setCompanies(data))
+    API_PUBLIC.get("/api/bikes/companies")
+      .then((res) => setCompanies(res.data))
       .catch((err) => console.error("Companies error:", err));
   }, []);
 
@@ -60,60 +48,52 @@ export default function CustomService() {
 
   // ---------------- Load models ----------------
   useEffect(() => {
-    if (selectedCompany) {
-      fetch(`${BACKEND_URL}/api/bikes/companies/${selectedCompany}/models`)
-        .then((res) => res.json())
-        .then((data) => setModels(data))
-        .catch((err) => console.error("Models error:", err));
-    } else {
+    if (!selectedCompany) {
       setModels([]);
       setSelectedModel("");
       setCc("");
+      return;
     }
+
+    API_PUBLIC.get(`/api/bikes/companies/${selectedCompany}/models`)
+      .then((res) => setModels(res.data))
+      .catch((err) => console.error("Models error:", err));
   }, [selectedCompany]);
 
   // ---------------- Auto-fill CC ----------------
   useEffect(() => {
-    if (selectedModel) {
-      const model = models.find((m) => m.id == selectedModel);
-      if (model) setCc(model.engineCc);
-    } else {
+    if (!selectedModel) {
       setCc("");
+      return;
     }
+    const model = models.find((m) => String(m.id) === String(selectedModel));
+    if (model) setCc(model.engineCc);
   }, [selectedModel, models]);
+
+  // ---------------- Selected names (for showing + saving) ----------------
+  const selectedCompanyName = useMemo(() => {
+    const c = companies.find((x) => String(x.id) === String(selectedCompany));
+    return c?.name || "";
+  }, [companies, selectedCompany]);
+
+  const selectedModelName = useMemo(() => {
+    const m = models.find((x) => String(x.id) === String(selectedModel));
+    return m?.modelName || "";
+  }, [models, selectedModel]);
 
   // ---------------- Fetch saved services ----------------
   const fetchSavedServices = async () => {
-    const token = getToken();
-    if (!userId || !token) return;
-
     try {
-      const res = await fetch(`${BACKEND_URL}/api/customized/user/${userId}`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (res.status === 403) {
-        alert("Session expired. Please login again.");
-        window.location.href = "/login";
-        return;
-      }
-
-      if (!res.ok) throw new Error("Failed to fetch saved services");
-
-      const data = await res.json();
-      setSavedServices(data);
+      const res = await API_PRIVATE.get("/api/customized/my");
+      setSavedServices(res.data);
     } catch (err) {
-      console.error(err);
+      console.error("Saved services error:", err);
     }
   };
 
   useEffect(() => {
-    if (userId) fetchSavedServices();
-    else setSavedServices([]);
-  }, [userId]);
+    fetchSavedServices();
+  }, []);
 
   // ---------------- Auto-calculate price ----------------
   useEffect(() => {
@@ -124,23 +104,16 @@ export default function CustomService() {
       }
 
       try {
-        const res = await fetch(`${BACKEND_URL}/api/customized/calculate`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            bikeCompany: selectedCompany,
-            bikeModel: selectedModel,
-            cc,
-            ...services,
-          }),
+        const res = await API_PUBLIC.post("/api/customized/calculate", {
+          bikeCompanyId: Number(selectedCompany),
+          bikeModelId: Number(selectedModel),
+          cc: Number(cc),
+          ...services,
         });
 
-        if (!res.ok) return;
-
-        const data = await res.json();
-        setPrice(data);
+        setPrice(res.data);
       } catch (err) {
-        console.error(err);
+        console.error("Price error:", err);
       }
     };
 
@@ -149,14 +122,6 @@ export default function CustomService() {
 
   // ---------------- Save or update service ----------------
   const handleSave = async () => {
-    const token = getToken();
-
-    if (!userId || !token) {
-      alert("Please login to save your custom service");
-      window.location.href = "/login";
-      return;
-    }
-
     if (!selectedCompany || !selectedModel || !cc) {
       alert("Please select bike company and model");
       return;
@@ -168,60 +133,39 @@ export default function CustomService() {
     }
 
     const body = {
-      userId,
-      bikeCompany: selectedCompany,
-      bikeModel: selectedModel,
-      cc,
+      bikeCompanyId: Number(selectedCompany),
+      bikeCompanyName: selectedCompanyName,
+      bikeModelId: Number(selectedModel),
+      bikeModelName: selectedModelName,
+      cc: Number(cc),
       ...services,
-      totalPrice: price,
+      totalPrice: Number(price),
     };
 
-    const url = editingId
-      ? `${BACKEND_URL}/api/customized/${editingId}`
-      : `${BACKEND_URL}/api/customized/save`;
-
-    const method = editingId ? "PUT" : "POST";
+    const url = editingId ? `/api/customized/${editingId}` : "/api/customized/save";
+    const method = editingId ? "put" : "post";
 
     try {
-      const res = await fetch(url, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`, // ✅ FIX
-        },
-        body: JSON.stringify(body),
-      });
+      const res = await API_PRIVATE[method](url, body);
 
-      if (res.status === 403) {
-        alert("Session expired. Please login again.");
-        window.location.href = "/login";
-        return;
-      }
+      const savedService = res.data;
 
-      if (!res.ok) {
-        const errText = await res.text();
-        console.log("Save error:", res.status, errText);
-        alert("Save failed!");
-        return;
-      }
-
-      const savedService = await res.json();
       alert(editingId ? "Updated successfully!" : "Saved successfully!");
 
-      window.location.href = `/book?customServiceId=${savedService.id}&companyId=${savedService.bikeCompany}&modelId=${savedService.bikeModel}`;
+      // redirect back to booking page with customServiceId
+      router.push(`/book?customServiceId=${savedService.id}`);
     } catch (err) {
-      console.error(err);
-      alert("Something went wrong!");
+      console.error("Save error:", err);
+      alert("Save failed!");
     }
   };
 
   // ---------------- Edit / Delete ----------------
   const handleEdit = (service) => {
-    if (!userId) return;
-
     setEditingId(service.id);
-    setSelectedCompany(service.bikeCompany);
-    setSelectedModel(service.bikeModel);
+
+    setSelectedCompany(String(service.bikeCompanyId));
+    setSelectedModel(String(service.bikeModelId));
     setCc(service.cc);
 
     setServices({
@@ -238,34 +182,14 @@ export default function CustomService() {
   };
 
   const handleDelete = async (id) => {
-    const token = getToken();
-
-    if (!userId || !token) {
-      alert("Please login first");
-      window.location.href = "/login";
-      return;
-    }
-
     if (!confirm("Delete this service?")) return;
 
     try {
-      const res = await fetch(`${BACKEND_URL}/api/customized/${id}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`, // ✅ FIX
-        },
-      });
-
-      if (res.status === 403) {
-        alert("Session expired. Please login again.");
-        window.location.href = "/login";
-        return;
-      }
-
-      if (res.ok) fetchSavedServices();
-      else alert("Delete failed");
+      await API_PRIVATE.delete(`/api/customized/${id}`);
+      fetchSavedServices();
     } catch (err) {
-      console.error(err);
+      console.error("Delete error:", err);
+      alert("Delete failed");
     }
   };
 
@@ -305,6 +229,7 @@ export default function CustomService() {
             className="w-full mt-2 p-3 border rounded-lg"
             value={selectedModel}
             onChange={(e) => setSelectedModel(e.target.value)}
+            disabled={!selectedCompany}
           >
             <option value="">Select Model</option>
             {models.map((m) => (
@@ -368,76 +293,62 @@ export default function CustomService() {
       </motion.div>
 
       {/* SAVED SERVICES */}
-      {userId && (
-        <div className="grid md:grid-cols-2 gap-6 mt-9">
-          {savedServices.map((s) => (
-            <motion.div
-              key={s.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="p-6 bg-white rounded-3xl shadow-lg border border-gray-100 cursor-pointer hover:shadow-xl transition"
-              onClick={() =>
-                (window.location.href = `/book?customServiceId=${s.id}&companyId=${s.bikeCompany}&modelId=${s.bikeModel}`)
-              }
-            >
-              <h2 className="text-xl font-semibold text-gray-800 mb-2">
-                {s.bikeCompany} - {s.bikeModel} ({s.cc} CC)
-              </h2>
+      <div className="grid md:grid-cols-2 gap-6 mt-9">
+        {savedServices.map((s) => (
+          <motion.div
+            key={s.id}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-6 bg-white rounded-3xl shadow-lg border border-gray-100 hover:shadow-xl transition"
+          >
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">
+              {s.bikeCompanyName} - {s.bikeModelName} ({s.cc} CC)
+            </h2>
 
-              <p className="text-gray-600 mb-3">
-                <strong>Services:</strong>{" "}
-                {[
-                  s.wash && "Wash",
-                  s.oilChange && "Oil Change",
-                  s.chainLube && "Chain Lube",
-                  s.engineTuneUp && "Engine Tune-up",
-                  s.breakCheck && "Brake Check",
-                  s.fullbodyPolishing && "Full Body Polishing",
-                  s.generalInspection && "General Inspection",
-                ]
-                  .filter(Boolean)
-                  .join(", ")}
-              </p>
+            <p className="text-gray-600 mb-3">
+              <strong>Services:</strong>{" "}
+              {[
+                s.wash && "Wash",
+                s.oilChange && "Oil Change",
+                s.chainLube && "Chain Lube",
+                s.engineTuneUp && "Engine Tune-up",
+                s.breakCheck && "Brake Check",
+                s.fullbodyPolishing && "Full Body Polishing",
+                s.generalInspection && "General Inspection",
+              ]
+                .filter(Boolean)
+                .join(", ")}
+            </p>
 
-              <p className="text-gray-800 font-bold text-lg">
-                Total Price: ₹{s.totalPrice}
-              </p>
+            <p className="text-gray-800 font-bold text-lg">
+              Total Price: ₹{s.totalPrice}
+            </p>
 
-              <div className="mt-4 flex gap-3">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleEdit(s);
-                  }}
-                  className="px-4 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600"
-                >
-                  Edit
-                </button>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button
+                onClick={() => handleEdit(s)}
+                className="px-4 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+              >
+                Edit
+              </button>
 
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDelete(s.id);
-                  }}
-                  className="px-4 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                >
-                  Delete
-                </button>
+              <button
+                onClick={() => handleDelete(s.id)}
+                className="px-4 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+              >
+                Delete
+              </button>
 
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    window.location.href = `/book?customServiceId=${s.id}&companyId=${s.bikeCompany}&modelId=${s.bikeModel}`;
-                  }}
-                  className="px-4 py-1 bg-green-600 text-white rounded hover:bg-green-700"
-                >
-                  Book Now
-                </button>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      )}
+              <button
+                onClick={() => router.push(`/book?customServiceId=${s.id}`)}
+                className="px-4 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+              >
+                Book Now
+              </button>
+            </div>
+          </motion.div>
+        ))}
+      </div>
     </main>
   );
 }
