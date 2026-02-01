@@ -3,17 +3,22 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { API } from "@/utils/api"; // ✅ your API instance
+import { API } from "@/utils/api";
 
 export default function SavedServices() {
   const [services, setServices] = useState([]);
   const router = useRouter();
 
+  // ⚠️ TEMP: Use logged in userId
+  // best: decode token or backend should give /my endpoint
+  const userId = typeof window !== "undefined" ? localStorage.getItem("userId") : null;
+
   useEffect(() => {
     const fetchServices = async () => {
       try {
-        // ✅ token automatically added by API interceptor
-        const res = await API.get("/api/customized/my");
+        if (!userId) return;
+
+        const res = await API.get(`/api/customized/user/${userId}`);
         setServices(res.data);
       } catch (error) {
         console.error("Error fetching saved services:", error);
@@ -21,7 +26,7 @@ export default function SavedServices() {
     };
 
     fetchServices();
-  }, []);
+  }, [userId]);
 
   const handleBookNow = (service) => {
     router.push(`/book?customServiceId=${service.id}`);
