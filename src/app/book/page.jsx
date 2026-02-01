@@ -12,13 +12,19 @@ const TIME_SLOTS = [
 ];
 
 export default function BookingPage() {
-  const {
-    register,
-    handleSubmit,
-    watch,
-    setValue,
-    getValues,
-  } = useForm({ mode: "onChange" });
+  const { register, handleSubmit, watch, setValue } = useForm({
+    mode: "onChange",
+    defaultValues: {
+      serviceType: "",
+      companyId: "",
+      modelId: "",
+      appointmentDate: "",
+      timeSlot: "",
+      fullAddress: "",
+      landmark: "",
+      notes: "",
+    },
+  });
 
   const [companies, setCompanies] = useState([]);
   const [models, setModels] = useState([]);
@@ -75,18 +81,6 @@ export default function BookingPage() {
       .catch((err) => console.error("Models error:", err));
   }, [selectedCompany, setValue]);
 
-  // ================= Restore booking form (after customized save) =================
-  useEffect(() => {
-    const saved = localStorage.getItem("bookingDraft");
-    if (saved) {
-      const draft = JSON.parse(saved);
-
-      Object.entries(draft).forEach(([key, value]) => {
-        setValue(key, value);
-      });
-    }
-  }, [setValue]);
-
   // ================= Load Customized Service from Query Param =================
   useEffect(() => {
     if (initialized.current) return;
@@ -95,15 +89,17 @@ export default function BookingPage() {
     const customServiceId = params.get("customServiceId");
 
     if (customServiceId) {
+      // lock service type customized
       setValue("serviceType", "CUSTOMIZED");
 
-      API_PUBLIC.get(`/api/customized/${customServiceId}`)
+      API_PRIVATE.get(`/api/customized/${customServiceId}`)
         .then((res) => {
           const data = res.data;
           setCustomData(data);
 
-          setValue("companyId", String(data.bikeCompany));
-          setValue("modelId", String(data.bikeModel));
+          // auto fill company/model (IDs)
+          setValue("companyId", String(data.bikeCompanyId));
+          setValue("modelId", String(data.bikeModelId));
         })
         .catch((err) => console.error("Customized error:", err));
     }
@@ -111,18 +107,21 @@ export default function BookingPage() {
     initialized.current = true;
   }, [setValue]);
 
+  // ================= Customized Button Click =================
+  const handleCreateCustomized = () => {
+    // Just go to custom service page
+    // After saving, you should redirect back to /book?customServiceId=XX
+    router.push("/custom-service");
+  };
+
   // ================= Submit Booking =================
   const onSubmit = async (data) => {
     const token = localStorage.getItem("token");
     if (!token) return router.push("/login");
 
-    // ✅ IF CUSTOMIZED AND NO customData -> go to custom-service page
+    // If customized selected but customData not loaded -> show message
     if (data.serviceType === "CUSTOMIZED" && !customData) {
-      // Save form draft
-      localStorage.setItem("bookingDraft", JSON.stringify(getValues()));
-
-      // Redirect to custom service page
-      router.push("/custom-service");
+      alert("Please create/select your customized service first.");
       return;
     }
 
@@ -151,12 +150,13 @@ export default function BookingPage() {
         city: "Pune",
         landmark: data.landmark,
         notes: data.notes,
-        customizedService: customData || null,
+
+        customizedServiceId: customData ? customData.id : null,
       });
 
       const booking = bookingRes.data;
 
-      // 2️⃣ Amount in rupees
+      // 2️⃣ Amount
       const amountInRupees = customData ? Number(customData.totalPrice) : 99;
 
       // 3️⃣ Create Razorpay order
@@ -175,6 +175,7 @@ export default function BookingPage() {
         name: "Dr VehicleCare",
         description: "Bike Service Payment",
         order_id: order.id,
+
         handler: async function (response) {
           try {
             await API_PRIVATE.post("/api/payments/verify", {
@@ -184,15 +185,13 @@ export default function BookingPage() {
               razorpay_signature: response.razorpay_signature,
             });
 
-            // Clear draft after success
-            localStorage.removeItem("bookingDraft");
-
             router.push("/book/booking-success");
           } catch (err) {
             console.error("Verify failed:", err);
             alert("Payment verification failed!");
           }
         },
+
         modal: { ondismiss: () => alert("Payment cancelled") },
         theme: { color: "#dc2626" },
       };
@@ -213,19 +212,65 @@ export default function BookingPage() {
     }
   };
 
+  const selectedServicesList = customData
+    ? [
+        customData.wash && "Wash",
+        customData.oilChange && "Oil Change",
+        customData.chainLube && "Chain Lube",
+        customData.engineTuneUp && "Engine Tune-up",
+        customData.breakCheck && "Brake Check",
+        customData.fullbodyPolishing && "Full Body Polishing",
+        customData.generalInspection && "General Inspection",
+      ].filter(Boolean)
+    : [];
+
   return (
     <div className="max-w-2xl mx-auto p-6">
       <h1 className="text-3xl font-bold mb-6">Book a Bike Service</h1>
 
-      {/* ✅ Show customized details */}
-      {customData && (
-        <div className="mb-5 p-4 rounded-xl border bg-green-50">
-          <p className="font-semibold text-green-700">
-            Customized Service Loaded ✅
-          </p>
-          <p className="text-sm text-gray-700">
-            Total Price: <b>₹{customData.totalPrice}</b>
-          </p>
+      {/* ✅ Customized details block */}
+      {selectedServiceType === "CUSTOMIZED" && (
+        <div className="mb-5 p-4 rounded-xl border bg-blue-50">
+          {!customData ? (
+            <div className="flex flex-col gap-3">
+              <p className="font-semibold text-blue-700">
+                Customized Service Selected
+              </p>
+              <p className="text-sm text-gray-700">
+                Please create your customized service first.
+              </p>
+
+              <button
+                type="button"
+                onClick={handleCreateCustomized}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg"
+              >
+                Create Customized Service
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <p className="font-semibold text-green-700">
+                Customized Service Loaded ✅
+              </p>
+
+              <p className="text-sm text-gray-800">
+                <b>Bike:</b> {customData.bikeCompany} - {customData.bikeModel} (
+                {customData.cc} CC)
+              </p>
+
+              <p className="text-sm text-gray-800">
+                <b>Selected Services:</b>{" "}
+                {selectedServicesList.length > 0
+                  ? selectedServicesList.join(", ")
+                  : "None"}
+              </p>
+
+              <p className="text-sm text-gray-800">
+                <b>Total Price:</b> ₹{customData.totalPrice}
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -261,6 +306,7 @@ export default function BookingPage() {
         {/* Service type */}
         <select
           {...register("serviceType", { required: true })}
+          disabled={!!customData} // lock if custom loaded
           className="border p-2 w-full rounded"
         >
           <option value="">Select Service</option>
