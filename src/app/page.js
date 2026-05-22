@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
-
+import { useState } from "react";
+import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { ArrowRight, ShieldCheck, Clock, Wrench, Star } from "lucide-react";
 import { useRouter } from "next/navigation";
+
 
 
 
@@ -14,12 +15,15 @@ export default function HomePage() {
 
   const router = useRouter();
 
-  const isLoggedIn = () => {
+const isLoggedIn = () => {
+  if (typeof window !== "undefined") {
     const user = JSON.parse(localStorage.getItem("user"));
     return !!user?.id;
-  };
+  }
+  return false;
+};
 
-
+  
 
   return (
     <main className="bg-[#F5F7FA] text-[#111827] overflow-x-hidden">
@@ -215,7 +219,7 @@ export default function HomePage() {
             service.
           </p>
           <Link
-            href={localStorage.getItem("token") ? "/book" : "/login"}
+            href={isLoggedIn() ? "/book" : "/login"}
             className="px-12 py-4 rounded-full bg-cyan-500 text-white font-semibold shadow-xl hover:bg-cyan-400 transition"
           >
             Book Now
