@@ -1,20 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import dynamic from "next/dynamic";
+
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { ArrowRight, ShieldCheck, Clock, Wrench, Star } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 
-const LocationModalWithMap = dynamic(
-  () => import("./LocationModalWithMap/page.jsx"),
-  { ssr: false }
-);
 
 export default function HomePage() {
-  const [locationConfirmed, setLocationConfirmed] = useState(false);
+  
 
   const router = useRouter();
 
@@ -24,17 +20,6 @@ export default function HomePage() {
   };
 
 
-  useEffect(() => {
-    if (localStorage.getItem("selectedLocation")) setLocationConfirmed(true);
-  }, []);
-
-  if (!locationConfirmed) {
-    return (
-      <LocationModalWithMap
-        onLocationConfirmed={() => setLocationConfirmed(true)}
-      />
-    );
-  }
 
   return (
     <main className="bg-[#F5F7FA] text-[#111827] overflow-x-hidden">
