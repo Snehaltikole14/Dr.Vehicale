@@ -17,6 +17,7 @@ export default function RootLayout({ children }) {
     <html lang="en" style={{ colorScheme: "light" }}>
       <head>
         {/* 🔥 Prevent forced dark mode */}
+        <link rel="icon" href="/favicon.png" type="image/png" />
         <meta name="color-scheme" content="light" />
       </head>
 
