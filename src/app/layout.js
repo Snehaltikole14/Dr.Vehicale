@@ -16,37 +16,34 @@ pathname === "/signup" ||
 pathname.startsWith("/admin");
 
 return (
-<html lang="en" style={{ colorScheme: "light" }}>
-<body
-className={`${
-          !hideHeader ? "pt-[70px]" : "pt-0"
-        } flex min-h-screen flex-col bg-white text-black`}
->
-<Script
-id="organization-schema"
-type="application/ld+json"
-dangerouslySetInnerHTML={{
-__html: JSON.stringify({
-"@context": "https://schema.org",
-"@type": "Organization",
-name: "Dr Vehicle Care",
-url: "https://www.drvehiclecare.com",
-logo: "https://www.drvehiclecare.com/logo.png",
-}),
-}}
-/>
+  <html lang="en" style={{ colorScheme: "light" }}>
+    <body
+      className={`${
+        !hideHeader ? "pt-[70px]" : "pt-0"
+      } flex min-h-screen flex-col bg-white text-black`}
+    >
+      <Script
+        id="organization-schema"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            name: "Dr Vehicle Care",
+            url: "https://www.drvehiclecare.com",
+            logo: "https://www.drvehiclecare.com/favicon.png",
+          }),
+        }}
+      />
 
+      {!hideHeader && <Header />}
 
-    {!hideHeader && <Header />}
+      <main className="flex-grow">{children}</main>
 
-    <main className="flex-grow">{children}</main>
+      {!hideHeader && <Footer />}
 
-    {!hideHeader && <Footer />}
-
-    <Toaster position="top-right" />
-  </body>
-</html>
-
-
+      <Toaster position="top-right" />
+    </body>
+  </html>
 );
 }
