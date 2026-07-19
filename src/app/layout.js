@@ -8,44 +8,45 @@ import { Toaster } from "react-hot-toast";
 import Script from "next/script";
 
 export default function RootLayout({ children }) {
-  const pathname = usePathname();
+const pathname = usePathname();
 
-  const hideHeader =
-    pathname === "/login" ||
-    pathname === "/signup" ||
-    pathname.startsWith("/admin");
+const hideHeader =
+pathname === "/login" ||
+pathname === "/signup" ||
+pathname.startsWith("/admin");
 
-  return (
-    <html lang="en" style={{ colorScheme: "light" }}>
-      <head>
-        <Script
-          id="organization-schema"
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              "@context": "https://schema.org",
-              "@type": "Organization",
-              name: "Dr Vehicle Care",
-              url: "https://www.drvehiclecare.com",
-              logo: "https://www.drvehiclecare.com/logo.png",
-            }),
-          }}
-        />
-      </head>
-
-      <body
-        className={`${
+return (
+<html lang="en" style={{ colorScheme: "light" }}>
+<body
+className={`${
           !hideHeader ? "pt-[70px]" : "pt-0"
-        } flex flex-col min-h-screen bg-white text-black`}
-      >
-        {!hideHeader && <Header />}
+        } flex min-h-screen flex-col bg-white text-black`}
+>
+<Script
+id="organization-schema"
+type="application/ld+json"
+dangerouslySetInnerHTML={{
+__html: JSON.stringify({
+"@context": "https://schema.org",
+"@type": "Organization",
+name: "Dr Vehicle Care",
+url: "https://www.drvehiclecare.com",
+logo: "https://www.drvehiclecare.com/logo.png",
+}),
+}}
+/>
 
-        <main className="flex-grow">{children}</main>
 
-        {!hideHeader && <Footer />}
+    {!hideHeader && <Header />}
 
-        <Toaster position="top-right" />
-      </body>
-    </html>
-  );
+    <main className="flex-grow">{children}</main>
+
+    {!hideHeader && <Footer />}
+
+    <Toaster position="top-right" />
+  </body>
+</html>
+
+
+);
 }
