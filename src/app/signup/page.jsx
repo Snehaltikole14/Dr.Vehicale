@@ -107,7 +107,7 @@ export default function SignupPage() {
         transition={{ duration: 0.6 }}
         className="bg-white p-8 rounded-2xl shadow-xl w-[400px]"
       >
-        <h2 className="text-3xl font-bold text-center text-red-700 mb-2">
+        <h2 className="text-3xl font-bold text-center text-blue-700 mb-2">
           Dr. Vehicle Care
         </h2>
 
@@ -128,8 +128,8 @@ export default function SignupPage() {
                 value={form.email}
                 onChange={handleChange}
                 placeholder="Enter your email"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-500 outline-none"
-                required
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                requiblue
               />
             </div>
 
@@ -145,8 +145,8 @@ export default function SignupPage() {
                 value={form.phone}
                 onChange={handleChange}
                 placeholder="Enter your phone number"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-500 outline-none"
-                required
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                requiblue
               />
             </div>
 
@@ -156,7 +156,7 @@ export default function SignupPage() {
               className={`w-full py-2 rounded-lg font-semibold transition ${
                 sendingOtp || cooldown > 0
                   ? "bg-gray-400 cursor-not-allowed"
-                  : "bg-red-600 hover:bg-red-700 text-white"
+                  : "bg-blue-600 hover:bg-blue-700 text-white"
               }`}
             >
               {sendingOtp
@@ -182,7 +182,7 @@ export default function SignupPage() {
                 onChange={handleChange}
                 placeholder="Enter your full name"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                required
+                requiblue
               />
             </div>
 
@@ -214,7 +214,7 @@ export default function SignupPage() {
                 onChange={handleChange}
                 placeholder="Enter password"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                required
+                requiblue
               />
             </div>
 
@@ -231,13 +231,13 @@ export default function SignupPage() {
                 onChange={handleChange}
                 placeholder="Enter OTP"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                required
+                requiblue
               />
             </div>
 
             <button
               type="submit"
-              className="w-full bg-red-600 text-white py-2 rounded-lg font-semibold hover:bg-red-700"
+              className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700"
             >
               Verify OTP & Sign Up
             </button>
@@ -248,7 +248,7 @@ export default function SignupPage() {
           Already have an account?{" "}
           <span
             onClick={() => router.push("/login")}
-            className="text-red-600 cursor-pointer hover:underline"
+            className="text-blue-600 cursor-pointer hover:underline"
           >
             Login
           </span>
